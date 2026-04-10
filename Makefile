@@ -6,20 +6,27 @@ BUILD_DIR := ./build
 TEST_DIR := ./tests
 BIN_DIR := ./bin
 
+# Header files
+INC_DIRS := $(shell find $(INC_DIR) -type d)
+INC_FLAG := $(addprefix -I,$(INC_DIRS))
+
 # Compiler settings
-CC := gcc
-CFLAGS := -I$(INC_DIR)
+CC := cc
+CFLAGS := $(INC_FLAG)
 
 # Source files and Dependencies
-DEPS := $(wildcard $(INC_DIR)/*.h $(INC_DIR)/*/*.h)
-SRC := $(wildcard $(SRC_DIR)/*.c $(SRC_DIR)/*/*.c)
+DEPS := $(shell find $(INC_DIR) -name '*.h')
+SRC := $(shell find $(SRC_DIR) -name '*.c')
 OBJ := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRC))
 
 #Targets
-.PHONY: all build clean help
+.PHONY: all tests build clean help
 
 all: termui
 	$(BIN_DIR)/termui
+
+tests: 
+	@echo "Run tests" 
 
 build: $(BIN_DIR) $(BUILD_DIR) termui 
 

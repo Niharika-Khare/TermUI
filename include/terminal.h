@@ -3,20 +3,23 @@
 
 #include<termios.h>
 
-#define CLEAR_SCREEN "\033[2J"
-#define CURSOR_HOME "\033[H"
-#define ENTER "\012"
-#define ESCAPE "\033"
-#define UP_ARROW "\033[A"
-#define DOWN_ARROW "\033[B"
-#define RIGHT_ARROW "\033[C"
-#define LEFT_ARROW "\033[D"
+#define CURSOR_TO_END_CLEAR     "\033[J"    
+#define CLEAR_SCREEN            "\033[2J"
+#define CLEAR_SCROLLBACK        "\033[3J"
+#define CURSOR_HOME             "\033[H"
+#define ENTER                   '\012'
+#define ESCAPE                  '\033'
+#define UP_ARROW                "\033[A"
+#define DOWN_ARROW              "\033[B"
+#define RIGHT_ARROW             "\033[C"
+#define LEFT_ARROW              "\033[D"
+#define QUIT                    'q'
 
 
 void relocate_cursor(int x, int y);
 void clear_terminal();
-void canonical_mode();
-void non_canonical_mode();
-void cursor_movement(int c);
+int canonical_mode();
+int non_canonical_mode();
+int cursor_scroll(int scroll_len, int enable_side_move);
 
 #endif /*_TERMINAL_H_*/
