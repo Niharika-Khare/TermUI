@@ -3,8 +3,10 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<sys/ioctl.h>
 
 typedef struct termios Terminal;
+typedef struct winsize Winsize;
 
 static Terminal original_term;
 static int is_canon = 1;
@@ -27,6 +29,17 @@ static int set_terminal(Terminal *t, int file_no) {
     return tc;
 }
 
+
+/**
+ * Get size of current window
+ */
+void get_window_size(Winsize * w) {
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, w) == -1) {
+        char msg[] = "Unable to get size of current terminal window\n";
+        write(STDOUT_FILENO, msg, sizeof(msg));
+    }
+}
+
 /**
  * Move cursor to the specified coordinates
  * 
@@ -34,8 +47,8 @@ static int set_terminal(Terminal *t, int file_no) {
  */
 void relocate_cursor(int x, int y) {
     char cursor_loc[15];
-    int len = snprintf(cursor_loc, sizeof(cursor_loc), "\033[%d;%dH", x, y);
-    write(STDOUT_FILENO, cursor_loc, len);
+    int bytes = snprintf(cursor_loc, sizeof(cursor_loc), "\033[%d;%dH", x, y);
+    write(STDOUT_FILENO, cursor_loc, bytes);
 }
 
 /**
@@ -62,7 +75,8 @@ void clear_terminal() {
 int canonical_mode() {
     if ((original_term.c_lflag & ICANON) && (original_term.c_lflag & ECHO)) {
         return set_terminal(&original_term, STDIN_FILENO);
-    } else {
+    } 
+    else {
         Terminal t;
         if (get_terminal(&t, STDIN_FILENO)) {
             return -1;
@@ -98,36 +112,52 @@ int non_canonical_mode() {
 /**
  * Based on the content length (scroll_len), move the cursor to navigate any list
  */
-int cursor_scroll(int scroll_len, int enable_side_move) {
+int cursor_scroll(int scroll_len, int control_flags) {
+    Winsize w;
+    get_window_size(&w);
+    int vert_lim = scroll_len < w.ws_col ? scroll_len: w.ws_col;
+    int horzt_lim = w.ws_row;
+
+    int cursor_ver = 0, cursor_horz = 0;
     char buf[10];
-    int cursor=0;
+
     while (1) {
         int bytes = read(STDIN_FILENO, buf, 10);
-        if (bytes==1) {
-            if (buf[0] == ENTER) {
-                return cursor+1;
-            } else if (buf[0] == ESCAPE) {
+        if (bytes == 1) {
+            if (buf[0] == NEW_LINE && control_flags & NEW_LINE_ENABLED) {
+                return cursor_ver+1;
+            } 
+            else if (buf[0] == ESCAPE) {
                 return 0;
-            } else if (buf[0] == QUIT) {
+            } 
+            else if (buf[0] == QUIT) {
                 return -1;
             }
         }
-        if (bytes==3) {
-            if (memcmp(buf, UP_ARROW, 3)==0 && cursor>0) {
-                cursor--;
+        if (bytes == 3) {
+            if (memcmp(buf, UP_ARROW, 3) == 0 && cursor_ver > 0) {
+                cursor_ver--;
                 write(STDOUT_FILENO, UP_ARROW, sizeof(UP_ARROW));
-            } else if (memcmp(buf, DOWN_ARROW, 3)==0 && cursor<scroll_len-1) {
-                cursor++;
+            } 
+            else if (memcmp(buf, DOWN_ARROW, 3) == 0 && cursor_ver < vert_lim-1) {
+                cursor_ver++;
                 write(STDOUT_FILENO, DOWN_ARROW, sizeof(DOWN_ARROW));
             } 
-            if (enable_side_move) {
-                if (memcmp(buf, LEFT_ARROW, 3)==0 && cursor>0) {
-                    cursor--;
+            if (control_flags & HORIZONTAL_NAV) {
+                if (memcmp(buf, LEFT_ARROW, 3) == 0 && cursor_horz > 0) {
+                    cursor_horz--;
                     write(STDOUT_FILENO, LEFT_ARROW, sizeof(LEFT_ARROW));
-                } else if (memcmp(buf, RIGHT_ARROW, 3)==0 && cursor<scroll_len-1) {
-                    cursor++;
+                } 
+                else if (memcmp(buf, RIGHT_ARROW, 3) == 0 && cursor_horz < cursor_horz-1) {
+                    cursor_horz++;
                     write(STDOUT_FILENO, RIGHT_ARROW, sizeof(RIGHT_ARROW));
                 }
+            } 
+            if (control_flags & DIRECTORY_TRAVERSAL) {
+                /**
+                 * TODO: Add for forward and backward directory navigation 
+                 *       when implementing explorer
+                 */
             }
         }
     }
