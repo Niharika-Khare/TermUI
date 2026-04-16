@@ -13,6 +13,6 @@ typedef struct {
 } MessageProp;
 
 void render_home_screen(MessageProp* prop);
-void process_choice(int choice, int choice_cnt);
+int process_choice(int choice, int choice_cnt);
 
 #endif /*_HOME_H_ */

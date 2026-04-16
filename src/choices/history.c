@@ -1,7 +1,8 @@
 #include"history.h"
 #include<stdio.h>
 
-void history() {
+int history() {
     printf("History\n");
     getc(stdin);
+    return 0;
 }

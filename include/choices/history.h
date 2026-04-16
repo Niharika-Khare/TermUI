@@ -1,7 +1,7 @@
 #ifndef _HISTORY_
 #define _HISTORY_
 
-void history();
+int history();
 
 
 #endif /* _HISTORY_ */

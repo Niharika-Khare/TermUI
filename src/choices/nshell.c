@@ -1,7 +1,8 @@
 #include"nshell.h"
 #include<stdio.h>
 
-void nshell() {
+int nshell() {
     printf("nshell\n");
     getc(stdin);
+    return 0;
 }

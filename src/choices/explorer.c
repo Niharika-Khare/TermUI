@@ -1,7 +1,8 @@
 #include"explorer.h"
 #include<stdio.h>
 
-void explorer() {
+int explorer() {
     printf("Explorer\n");
     getc(stdin);
+    return 0;
 }

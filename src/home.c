@@ -13,7 +13,7 @@ static char *choice_menu[] = {SYS_INFO, EXPLR, N_SHELL, HISTORY, HELP};
 /**
  * Array of pointers to functions for handling the user choice from choice_menu
  */
-static void (*func[])() = {system_info, explorer, nshell, history, help};
+static int (*func[])() = {system_info, explorer, nshell, history, help};
 
 static int get_header_line_count(char * header) {
     int num_line = 0;
@@ -63,20 +63,19 @@ void render_home_screen(MessageProp * prop) {
  * -1 is returned by cursor_scroll when user presses 'q' or 'Q'
  * 0 is returned by cursor_scroll when user presses ESC to go back to home screen
  */
-void process_choice(int choice, int choice_cnt) {
+int process_choice(int choice, int choice_cnt) {
     if (choice == -1) {
-        clear_terminal();
-        char exit_msg[] = "Exiting TermUI application...\n";
-        write(STDOUT_FILENO, exit_msg, sizeof(exit_msg));
+        return -1;
     } 
     else if (choice == 0) {
-        return;
+        return 0;
     } 
     else if (choice <= choice_cnt) {
-        func[choice-1]();
+        return func[choice-1]();
     } 
     else {
         char err_msg[] = "Not a valid option!\n";
         write(STDOUT_FILENO, err_msg, sizeof(err_msg));
+        return 0;
     }
 }

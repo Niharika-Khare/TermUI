@@ -3,7 +3,6 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
-#include<sys/ioctl.h>
 
 typedef struct termios Terminal;
 typedef struct winsize Winsize;
@@ -42,8 +41,6 @@ void get_window_size(Winsize * w) {
 
 /**
  * Move cursor to the specified coordinates
- * 
- * CHANGE THIS TO USE SNPRINTF() + WRITE()
  */
 void relocate_cursor(int x, int y) {
     char cursor_loc[15];
@@ -148,7 +145,7 @@ int cursor_scroll(int scroll_len, int control_flags) {
                     cursor_horz--;
                     write(STDOUT_FILENO, LEFT_ARROW, sizeof(LEFT_ARROW));
                 } 
-                else if (memcmp(buf, RIGHT_ARROW, 3) == 0 && cursor_horz < cursor_horz-1) {
+                else if (memcmp(buf, RIGHT_ARROW, 3) == 0 && cursor_horz < horzt_lim-1) {
                     cursor_horz++;
                     write(STDOUT_FILENO, RIGHT_ARROW, sizeof(RIGHT_ARROW));
                 }

@@ -1,6 +1,6 @@
 #ifndef _HELP_
 #define _HELP_
 
-void help();
+int help();
 
 #endif /* _HELP_ */

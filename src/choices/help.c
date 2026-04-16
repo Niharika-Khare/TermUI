@@ -1,7 +1,8 @@
 #include"help.h"
 #include<stdio.h>
 
-void help() {
+int  help() {
     printf("Help\n");
     getc(stdin);
+    return 0;
 }
