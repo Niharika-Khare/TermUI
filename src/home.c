@@ -8,12 +8,12 @@
 #include<unistd.h>
 #include<stdio.h>
 
-static char *choice_menu[] = {SYS_INFO, EXPLR, N_SHELL, HISTORY, HELP};
+static char *choice_menu[] = {N_SHELL, SYS_INFO, EXPLR, HISTORY, HELP};
 
 /**
  * Array of pointers to functions for handling the user choice from choice_menu
  */
-static int (*func[])() = {system_info, explorer, nshell, history, help};
+static int (*func[])() = {nshell, system_info, explorer, history, help};
 
 static int get_header_line_count(char * header) {
     int num_line = 0;
@@ -24,37 +24,54 @@ static int get_header_line_count(char * header) {
 }
 
 static int display_choice_menu(char **choice_menu, int choice_cnt) {
-    clear_terminal();
+    char buffer[MAX_HOME_SCREEN_BUFFER];
     char header[] = DISABLE_LINE_WRAP \
                     "**********************************************************************\n" \
                     "                WELCOME TO TERMINAL UI APPLICATION                    \n" \
                     "**********************************************************************\n\n" \
                     "Select one of the choice_menu (Press q/Q to quit application):        \n" \
                     ENABLE_LINE_WRAP ;
-    printf("%s", header);
+    int len = snprintf(buffer, sizeof(buffer), "%s", header);
     for (int i=0; i<choice_cnt; i++) {
-        printf("%d. %s\n", i+1, choice_menu[i]);
+        len += snprintf(buffer+len, sizeof(buffer), "%d. %s\n", i+1, choice_menu[i]);
     }
+    write(STDOUT_FILENO, buffer, len);
     return get_header_line_count(header);
 }
 
 /**
  * Print the application header and the choices available to the user.
- * Switch to non-cacnonical mode to enable the user to navigate the choice menu.
+ * Switch to non-canonical mode to enable the user to navigate the choice menu.
  */
-void render_home_screen(MessageProp * prop) {
+int render_home_screen(MessageProp * prop) {
+
+    // Validate input
     if (prop == NULL) {
-        return;
+        char err_msg[] = "Invalid arguements for screen rendering!\n";
+        write(STDERR_FILENO, err_msg, sizeof(err_msg)-1);
+        return -1;
     }
 
+    // Setup terminal
+    clear_terminal();
+
+    // Display header and the choice menu
     int choice_cnt = sizeof(choice_menu)/sizeof(choice_menu[0]);
     int header_len = display_choice_menu(choice_menu, choice_cnt);
 
+    if (non_canonical_mode() == -1) {
+        char err_msg[] = "Switch to non-canonical mode unsuccessful!\n";
+        write(STDERR_FILENO, err_msg, sizeof(err_msg)-1);
+        return -1;
+    } 
+
+    // Populate props
     prop->scroll_start = header_len + 1;
     prop->choice_cnt = choice_cnt;
 
-    non_canonical_mode();
+    // Position the cursor for navigating the choice menu
     relocate_cursor(prop->scroll_start, 0);
+    return 0;
 }
 
 /**
@@ -75,7 +92,7 @@ int process_choice(int choice, int choice_cnt) {
     } 
     else {
         char err_msg[] = "Not a valid option!\n";
-        write(STDOUT_FILENO, err_msg, sizeof(err_msg));
+        write(STDOUT_FILENO, err_msg, sizeof(err_msg)-1);
         return 0;
     }
 }

@@ -3,6 +3,10 @@
 
 #include<sys/ioctl.h>
 #include<termios.h>
+#include<unistd.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
 
 /**
  * ANSI escape sequences
@@ -20,6 +24,7 @@
 #define RIGHT_ARROW             "\033[C"
 #define LEFT_ARROW              "\033[D"
 #define QUIT                    'q'
+#define _QUIT                    'q'
 
 /**
  * Control flags for keyboard actions

@@ -1,20 +1,14 @@
 #include"terminal.h"
-#include<unistd.h>
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
 
 typedef struct termios Terminal;
-typedef struct winsize Winsize;
 
 static Terminal original_term;
-static int is_canon = 1;
 
 static int get_terminal(Terminal *t, int file_no) {
     int tc;
     if ((tc = tcgetattr(file_no, t)) == -1) {
         char err_msg[] = "Failed to get terminal attributes!";
-        write(file_no, err_msg, sizeof(err_msg));
+        write(STDERR_FILENO, err_msg, sizeof(err_msg)-1);
     } 
     return tc;
 }
@@ -23,7 +17,7 @@ static int set_terminal(Terminal *t, int file_no) {
     int tc;
     if ((tc = tcsetattr(file_no, TCSANOW, t)) == -1) {
         char err_msg[] = "Failed to set terminal attributes!";
-        write(file_no, err_msg, sizeof(err_msg));
+        write(STDERR_FILENO, err_msg, sizeof(err_msg)-1);
     }
     return tc;
 }
@@ -34,8 +28,8 @@ static int set_terminal(Terminal *t, int file_no) {
  */
 void get_window_size(Winsize * w) {
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, w) == -1) {
-        char msg[] = "Unable to get size of current terminal window\n";
-        write(STDOUT_FILENO, msg, sizeof(msg));
+        char err_msg[] = "Unable to get size of current terminal window\n";
+        write(STDERR_FILENO, err_msg, sizeof(err_msg)-1);
     }
 }
 
@@ -60,7 +54,7 @@ void relocate_cursor(int x, int y) {
  */
 void clear_terminal() {
     char clear_terminal_cmd[] = CURSOR_HOME CURSOR_TO_END_CLEAR;
-    write(STDOUT_FILENO, clear_terminal_cmd, sizeof(clear_terminal_cmd));
+    write(STDOUT_FILENO, clear_terminal_cmd, sizeof(clear_terminal_cmd)-1);
 }
 
 /**
@@ -75,7 +69,7 @@ int canonical_mode() {
     } 
     else {
         Terminal t;
-        if (get_terminal(&t, STDIN_FILENO)) {
+        if (get_terminal(&t, STDIN_FILENO) == -1) {
             return -1;
         }
         t.c_lflag |= ICANON | ECHO;
@@ -91,8 +85,8 @@ int canonical_mode() {
  * 
  */
 int non_canonical_mode() { 
-    Terminal t, new_term;
-    if (get_terminal(&t, STDIN_FILENO)) {
+    Terminal t;
+    if (get_terminal(&t, STDIN_FILENO) == -1) {
         return -1;
     }
     if (!(t.c_lflag & ICANON) && !(t.c_lflag & ECHO)) {
@@ -112,8 +106,8 @@ int non_canonical_mode() {
 int cursor_scroll(int scroll_len, int control_flags) {
     Winsize w;
     get_window_size(&w);
-    int vert_lim = scroll_len < w.ws_col ? scroll_len: w.ws_col;
-    int horzt_lim = w.ws_row;
+    int vert_lim = scroll_len < w.ws_row ? scroll_len: w.ws_row;
+    int horzt_lim = w.ws_col;
 
     int cursor_ver = 0, cursor_horz = 0;
     char buf[10];
@@ -127,7 +121,7 @@ int cursor_scroll(int scroll_len, int control_flags) {
             else if (buf[0] == ESCAPE) {
                 return 0;
             } 
-            else if (buf[0] == QUIT) {
+            else if (buf[0] == QUIT || buf[0] == _QUIT) {
                 return -1;
             }
         }
