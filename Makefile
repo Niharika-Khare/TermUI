@@ -6,6 +6,9 @@ LIB_DIR := ./lib
 SRC_DIR := ./src
 TEST_DIR := ./tests
 UNITY_DIR := ./unity
+CMD_SRC_DIR := ./commands
+CMD_BUILD_DIR := ./build/commands
+CMD_BIN_DIR := ./bin/commands
 
 # Header files
 INC_DIRS := $(shell find $(INC_DIR) -type d)
@@ -21,6 +24,11 @@ SRC := $(shell find $(SRC_DIR) -name '*.c')
 OBJ := $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRC))
 TESTS := $(shell find $(TEST_DIR) -name '*.c')
 
+# Command source files and executables
+CMD_SRC := $(shell find $(CMD_SRC_DIR) -name '*.c')
+CMD_OBJ := $(patsubst $(CMD_SRC_DIR)/%.c,$(CMD_BUILD_DIR)/%.o,$(CMD_SRC))
+CMD := $(patsubst $(CMD_SRC_DIR)/%.c,$(CMD_BIN_DIR)/%,$(CMD_SRC))
+
 #Targets
 .PHONY: all test build clean help
 
@@ -28,7 +36,7 @@ all: build
 	$(BIN_DIR)/test
 	$(BIN_DIR)/termui
 
-build: $(BIN_DIR) $(BUILD_DIR) termui test
+build: $(BIN_DIR) $(BUILD_DIR) commands termui test
 
 clean:
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
@@ -44,6 +52,17 @@ help:
 # Directory creation
 $(BIN_DIR) $(BUILD_DIR):
 	mkdir -p $@
+
+# Commands compilation
+$(CMD_BUILD_DIR)/%.o: $(CMD_SRC_DIR)/%.c $(DEPS)
+	@mkdir -p $(dir $@)
+	$(CC) -c $< -o $@ $(CFLAGS)
+
+$(CMD_BIN_DIR)/%: $(CMD_BUILD_DIR)/%.o
+	@mkdir -p $(dir $@)
+	$(CC) $< -o $@ $(CFLAGS) 
+
+commands: $(CMD)
 
 # Object file creation
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(DEPS)
