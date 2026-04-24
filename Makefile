@@ -24,14 +24,14 @@ TESTS := $(shell find $(TEST_DIR) -name '*.c')
 #Targets
 .PHONY: all test build clean help
 
-all: test termui 
+all: build 
 	$(BIN_DIR)/test
 	$(BIN_DIR)/termui
 
 build: $(BIN_DIR) $(BUILD_DIR) termui test
 
 clean:
-	rm -rf $(OBJ) $(BIN_DIR)/*
+	rm -rf $(BIN_DIR) $(BUILD_DIR)
 
 help:
 	@echo "Makefile targets:"

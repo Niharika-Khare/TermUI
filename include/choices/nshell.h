@@ -23,14 +23,11 @@ typedef struct command_struct {
     int parse_status;
     struct command_struct * next_cmd;
 } Command;
-
-
-static const char nshell_prompt[] = BOLD_TEXT_ON \
-                                    "nshell: " \
-                                    BOLD_TEXT_OFF;
                             
-int nshell();
+
 void log_shell_err(const char *err_msg, ...);
 void log_shell_info(const char *err_msg, ...);
+void clear_space(Command *command);
+int nshell();
 
 #endif /* _N_SHELL_ */
