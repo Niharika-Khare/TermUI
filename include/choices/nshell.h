@@ -20,7 +20,6 @@ typedef struct command_struct {
     char *tool;
     int param_cnt;
     char *cmd_params[MAX_TOKEN_COUNT];
-    int parse_status;
     struct command_struct * next_cmd;
 } Command;
                             

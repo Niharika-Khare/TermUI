@@ -105,7 +105,6 @@ static int parse_commands(char *buffer, Command * root_command) {
             else if (!command->cmd) {
                 command->cmd = malloc(token_len+1);
 
-                command->parse_status = 1;
                 memcpy(command->cmd, token, token_len+1);
             }  
             else if (param_cnt < MAX_TOKEN_COUNT) {
@@ -134,7 +133,7 @@ static int parse_commands(char *buffer, Command * root_command) {
 static int execute_commands(Command *command) {
     int success = 1;
     while (command) {
-        if (command->cmd && command->parse_status) {
+        if (command->cmd) {
             success = 1;
             if (memcmp(command->cmd, "exit", sizeof("exit")) == 0) {
                 return 1;
@@ -160,20 +159,20 @@ static int execute_commands(Command *command) {
                 // TODO: if child returns failed then 
                 // success = 0;
             }
-        } else if (command->cmd && !command->parse_status) {
-            log_shell_err("err: too many command args: %s!\n", command->cmd);
-            success = 0;
-        }
-        if (command->tool) {
-            if (memcmp(command->tool, "||", sizeof("||")) == 0 && !success) {
-                return 0;
-            } else if (memcmp(command->tool, "&&", sizeof("&&")) == 0 && success) {
-                return 0;
-            } else if (memcmp(command->tool, "|", sizeof("|")) == 0) {
+            if (command->tool) {
+                if (memcmp(command->tool, "||", sizeof("||")) == 0 && !success) {
+                    return 0;
+                } else if (memcmp(command->tool, "&&", sizeof("&&")) == 0 && success) {
+                    return 0;
+                } else if (memcmp(command->tool, "|", sizeof("|")) == 0) {
                 
-            }
-        } 
-        command = command->next_cmd;
+                }
+            } 
+            command = command->next_cmd;
+        } else {
+            break;
+            
+        }
     }
     return 0;
 }
