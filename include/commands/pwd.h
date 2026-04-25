@@ -1,13 +1,12 @@
-#ifndef _PWD_H_
-#define _PWD_H_
+#ifndef __PWD_H__
+#define __PWD_H__
 
 #include <stdio.h>
-#include <sys/fcntl.h>
-#include <dirent.h>
-#include "nshell.h"
+#include <string.h>
+#include <limits.h>
+#include <unistd.h>
 
 
-#define CWD "."
 int pwd();
 
 #endif /* _PWD_H_ */

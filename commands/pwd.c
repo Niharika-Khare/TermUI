@@ -1,18 +1,15 @@
 #include "pwd.h"
 
 int pwd() {
-    DIR *dir;
-    if ((dir = opendir(CWD)) == NULL) {
+    char path[PATH_MAX];
+    if (getcwd(path, PATH_MAX) == NULL) {
         return -1;
     }
 
-    char path[512];
-    if (fcntl(dir->__dd_fd, F_GETPATH, &path) == -1) {        
-        return -1;
-    }
     int bytes = strlen(path);
     path[bytes] = '\n';
     path[bytes+1] = '\0';
+    
     write(STDOUT_FILENO, path, strlen(path) + 2);
     return 0;
 }
