@@ -7,16 +7,19 @@ static inline void set_flag(int *flags, int flag) {
 static char *buffer;
 static int buf_len;
 static int flags;
+static int exit_status;
 
 
 void ls(int flags, char *dir_name) {
     DIR* dir;
     Dirent * d;
+    exit_status = 0;
 
     if ((dir = opendir(dir_name)) == NULL) {
         char err_buf[512];
         int bytes = snprintf(err_buf, sizeof(err_buf), "ls: unable to open: %s\n", dir_name); 
         write(STDERR_FILENO, err_buf, bytes);
+        exit_status = 1;
         return;
     }
     
@@ -98,5 +101,6 @@ int main(int argc, char ** argv) {
 
     write(STDOUT_FILENO, buffer, buf_len + 2);
     free(buffer);
-    return 0;
+
+    return exit_status;
 }

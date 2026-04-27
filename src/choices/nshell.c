@@ -2,7 +2,7 @@
 #include"terminal.h"
 
 static const char nshell_prompt[] = BOLD_TEXT_ON \
-                                    "nshell: " \
+                                    "\n[%s]\nnshell: " \
                                     BOLD_TEXT_OFF;
 
 static const char *supported_tools[] = { "&&", "|", "||" };
@@ -11,13 +11,40 @@ static const char *io_redirectives[] = { "<", ">", ">>", "2>", "&>" };
 
 static const char *unsupported_tools[] = { ";", "#", "&", "$", "\\" };
 
+static const char *built_ins[] = { "cd", "exit" };
+
+static char path[PATH_MAX];
+
+static inline void log_shell_err(const char *err_msg, ...) {
+    char err_buff[500];
+    va_list args;
+    va_start(args, err_msg);
+    int bytes = vsnprintf(err_buff, sizeof(err_buff), err_msg, args);
+    va_end(args);
+    write(STDERR_FILENO, err_buff, bytes);
+}
+
+static inline void log_shell_info(const char *info_msg, ...) {
+    char info_buff[500];
+    va_list args;
+    va_start(args, info_msg);
+    int bytes = vsnprintf(info_buff, sizeof(info_buff), info_msg, args);
+    va_end(args);
+    write(STDOUT_FILENO, info_buff, bytes);
+}
+
 static inline void print_prompt() {
-    write(STDOUT_FILENO, nshell_prompt, sizeof(nshell_prompt)-1);           
+    char *buffer;
+    int size = PATH_MAX + strlen(nshell_prompt) + 1;
+    buffer = malloc(size);
+    int bytes = snprintf(buffer, size, nshell_prompt, path);
+    write(STDOUT_FILENO, buffer, bytes + 1);           
 }                        
 
 static inline void setup_nshell_terminal() {
     clear_terminal();
     canonical_mode();
+    getcwd(path, PATH_MAX);
 }
 
 static inline int read_cmd(char* buffer) {
@@ -138,34 +165,51 @@ static int execute_commands(Command *command) {
     while (command) {
         if (command->cmd) {
             success = 1;
-            if (memcmp(command->cmd, "exit", sizeof("exit")) == 0) {
+            if (memcmp(command->cmd, BI_EXIT, sizeof(BI_EXIT)) == 0) {
                 return 1;
             }
-            pid_t cmd_pid = fork();
-            if (cmd_pid < 0) {
-                log_shell_err("err: encountered error in execution of: %s\n", command->cmd);
-                break;
-            } else if (cmd_pid == 0) {
-                char path[50] = CMD_PATH;
-                // TODO: Replace below with memcat for better performance
-                strcat(path, command->cmd);
-                if (execv(path, command->cmd_params) < 0) {
-                    log_shell_err("err: command not found: %s\n", command->cmd);
-
-                    // TODO: If unsuccessful, send the status to parent (nshell)
-                    // via pipe or signal.
-
-                    exit(1);
+            else if (memcmp(command->cmd, BI_CD, sizeof(BI_CD)) == 0) {
+                if (command->param_cnt <1 || chdir(command->cmd_params[1]) == -1) {
+                    log_shell_err("err: cd: invalid path: %s\n", command->cmd_params[1]);
+                    success = 0;
+                } 
+                getcwd(path, PATH_MAX);
+            }
+            else if (memcmp(command->cmd, BI_PWD, sizeof(BI_PWD)) == 0) {
+                char path[PATH_MAX];
+                if (getcwd(path, PATH_MAX) == NULL) {
+                    log_shell_err("err: pwd: unable to get current working directory\n");
+                    success = 0;
                 }
-            } else {
-                wait(NULL);
-                // TODO: if child returns failed then 
-                // success = 0;
+                else {
+                    write(STDOUT_FILENO, path, strlen(path) + 1);
+                }
+            }
+            else if (memcmp(command->cmd, BI_ECHO, sizeof(BI_ECHO))==0) {
+
+            }
+            else {
+                pid_t cmd_pid = fork();
+                if (cmd_pid < 0) {
+                    log_shell_err("err: encountered error in execution of: %s\n", command->cmd);
+                    break;
+                } else if (cmd_pid == 0) {
+                    char path[50] = CMD_PATH;
+                    strcat(path, command->cmd);
+                    if (execv(path, command->cmd_params) < 0) {
+                        log_shell_err("err: command not found: %s\n", command->cmd);
+                        exit(1);
+                    }
+                } else {
+                    wait(NULL);
+                    // TODO: if child returns failed then 
+                    // success = 0;
+                }
             }
             if (command->tool) {
-                if (memcmp(command->tool, "||", sizeof("||")) == 0 && !success) {
+                if (memcmp(command->tool, "||", sizeof("||")) == 0 && success) {
                     return 0;
-                } else if (memcmp(command->tool, "&&", sizeof("&&")) == 0 && success) {
+                } else if (memcmp(command->tool, "&&", sizeof("&&")) == 0 && !success) {
                     return 0;
                 } else if (memcmp(command->tool, "|", sizeof("|")) == 0) {
                 
@@ -178,24 +222,6 @@ static int execute_commands(Command *command) {
         }
     }
     return 0;
-}
-
-void log_shell_err(const char *err_msg, ...) {
-    char err_buff[500];
-    va_list args;
-    va_start(args, err_msg);
-    int bytes = vsnprintf(err_buff, sizeof(err_buff), err_msg, args);
-    va_end(args);
-    write(STDERR_FILENO, err_buff, bytes);
-}
-
-void log_shell_info(const char *info_msg, ...) {
-    char info_buff[500];
-    va_list args;
-    va_start(args, info_msg);
-    int bytes = vsnprintf(info_buff, sizeof(info_buff), info_msg, args);
-    va_end(args);
-    write(STDOUT_FILENO, info_buff, bytes);
 }
 
 /**
