@@ -88,11 +88,11 @@ static inline int is_unsupported_tool(char * token) {
 static int parse_commands(char *buffer, Command * root_command) {
     
     Command *command = root_command;
-    int param_cnt = 0;
+    int param_cnt = 0, io_rd_cnt = 0, wait_on_fname = 0;
 
     while (*buffer != '\n' && *buffer != '\0') {
         
-        while (*buffer == ' ') {
+        while (*buffer == ' ' || *buffer == '\t') {
             buffer++;
         }
 
@@ -115,9 +115,41 @@ static int parse_commands(char *buffer, Command * root_command) {
 
             token[token_len] = '\0';
             
-            if (is_supported_tool(token)) {
+            if (is_io_redirective(token) || wait_on_fname) {
 
-                if (!command->cmd) {
+                if (!command->cmd || is_supported_tool(token)) {
+                    log_shell_err("err: parse error near: %s\n", token);
+                    return 0;
+                }
+                if (is_unsupported_tool(token)) {
+                    log_shell_err("err: parse error near: %s\n%s not supported yet\n", token, token);
+                    return 0;
+                }
+                if (io_rd_cnt == MAX_IO_REDIRECTS) {
+                    log_shell_err("err: to many io redirects!!\n");
+                    return 0;
+                }
+                if (wait_on_fname && is_io_redirective(token)) {
+                    log_shell_err("err: missing filename for io redirection\n");
+                    return 0;
+                }
+                if (wait_on_fname) {
+                    
+                    command->io_rd[io_rd_cnt].filename = malloc(token_len+1);
+                    memcpy(command->io_rd[io_rd_cnt].filename, token, token_len+1);
+                    command->io_rd_cnt = ++io_rd_cnt;
+                    wait_on_fname = 0;
+                } 
+                else {
+
+                    command->io_rd[io_rd_cnt].redirect = malloc(token_len+1);
+                    memcpy(command->io_rd[io_rd_cnt].redirect, token, token_len+1);
+                    wait_on_fname = 1;
+                }
+            }
+            else if (is_supported_tool(token)) {
+
+                if (!command->cmd || wait_on_fname) {
                     log_shell_err("err: parse error near: %s\n", token);
                     return 0;
                 }
@@ -126,9 +158,14 @@ static int parse_commands(char *buffer, Command * root_command) {
                 memset(command->next_cmd, 0, sizeof(Command));
                 
                 param_cnt = 0;
+                io_rd_cnt = 0;
                 memcpy(command->tool, token, token_len+1);
                 command = command->next_cmd;
             } 
+            else if (is_unsupported_tool(token)) {
+                log_shell_err("err: nshell does not support this shell tool yet: %s\n", token);
+                return 0;
+            }
             else if (!command->cmd) {
                 command->cmd = malloc(token_len+1);
                 command->cmd_params[param_cnt] = malloc(token_len+1);
@@ -150,7 +187,7 @@ static int parse_commands(char *buffer, Command * root_command) {
             }
         } 
     }
-    if (!command->cmd && command != root_command) {
+    if ((!command->cmd && command != root_command) || wait_on_fname) {
         log_shell_err("err: incorrect termination to command sequence\n");
         return 0;
     } 
@@ -163,13 +200,16 @@ static int parse_commands(char *buffer, Command * root_command) {
 static int execute_commands(Command *command) {
     int success = 1;
     while (command) {
+        if (command->cmd && command->io_rd_cnt > 0) {
+
+        }
         if (command->cmd) {
             success = 1;
             if (memcmp(command->cmd, BI_EXIT, sizeof(BI_EXIT)) == 0) {
                 return 1;
             }
             else if (memcmp(command->cmd, BI_CD, sizeof(BI_CD)) == 0) {
-                if (command->param_cnt <1 || chdir(command->cmd_params[1]) == -1) {
+                if (command->param_cnt < 2 || chdir(command->cmd_params[1]) == -1) {
                     log_shell_err("err: cd: invalid path: %s\n", command->cmd_params[1]);
                     success = 0;
                 } 
@@ -185,8 +225,14 @@ static int execute_commands(Command *command) {
                     write(STDOUT_FILENO, path, strlen(path) + 1);
                 }
             }
-            else if (memcmp(command->cmd, BI_ECHO, sizeof(BI_ECHO))==0) {
-
+            else if (memcmp(command->cmd, BI_ECHO, sizeof(BI_ECHO)) == 0) {
+                char buffer[2048];
+                int bytes = 0;
+                for (int i=1; i<command->param_cnt && bytes < 2048; i++) {
+                    bytes += snprintf(buffer + bytes, strlen(command->cmd_params[i]) + 2, "%s ", command->cmd_params[i]);
+                }
+                buffer[bytes] = '\n';
+                write(STDOUT_FILENO, buffer, bytes);
             }
             else {
                 pid_t cmd_pid = fork();
@@ -235,6 +281,10 @@ void clear_space(Command *command) {
         free(command->tool);
         for(int i = 0 ; i < command->param_cnt; i++) {
             free(command->cmd_params[i]);
+        }
+        for (int i =0 ; i< command->io_rd_cnt; i++) {
+            free(command->io_rd[i].redirect);
+            free(command->io_rd[i].filename);
         }
         free(command);
     }
