@@ -104,7 +104,10 @@ static int parse_commands(char *buffer, Command * root_command) {
             } 
             else if (!command->cmd) {
                 command->cmd = malloc(token_len+1);
+                command->cmd_params[param_cnt] = malloc(token_len+1);
 
+                command->param_cnt = param_cnt + 1;
+                memcpy(command->cmd_params[param_cnt++], token, token_len+1);
                 memcpy(command->cmd, token, token_len+1);
             }  
             else if (param_cnt < MAX_TOKEN_COUNT) {

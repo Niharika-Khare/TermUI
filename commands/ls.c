@@ -49,7 +49,7 @@ void ls(int flags, char *dir_name) {
         buf_len += snprintf(buffer + buf_len,len + 2, "%s%c", d->d_name, delim);
     }
 
-    buffer[buf_len] = '\n';
+    buffer[buf_len++] = '\n';
     dir_list[i] = NULL;
 
     for (i=0; dir_list[i]; i++) {
@@ -63,9 +63,8 @@ void ls(int flags, char *dir_name) {
     return;
 }
 
-void parse_params(int argc, char ** argv, char ** dir_list) {
-    int assigned = 0;
-    while(--argc >= 0) {
+void parse_params(char ** argv, char ** dir_list) {
+    while(*++argv) {
         if (strcmp(*argv, "-a") == 0) {
             set_flag(&flags, A_);
         } 
@@ -77,12 +76,7 @@ void parse_params(int argc, char ** argv, char ** dir_list) {
         }
         else {
             *dir_list++ = *argv;
-            assigned = 1;
         }
-        argv++;
-    }
-    if (!assigned) {
-        *dir_list++ = ".";
     }
     *dir_list = NULL;
 }
@@ -91,11 +85,15 @@ void parse_params(int argc, char ** argv, char ** dir_list) {
 int main(int argc, char ** argv) {
 
     char *dir_list[MAX_DIR_CNT];
-    parse_params(argc, argv, dir_list);
+    parse_params(argv, dir_list);
     
+    if (!*dir_list) {
+        *dir_list = ".";
+        *(dir_list + 1) = NULL;
+    }
     buffer = malloc(0);
-    for ( ; *dir_list; *dir_list = *(dir_list+1)) {
-        ls(flags, *dir_list);
+    for (int i=0; dir_list[i]; i++) {
+        ls(flags, dir_list[i]);
     }
 
     write(STDOUT_FILENO, buffer, buf_len + 2);

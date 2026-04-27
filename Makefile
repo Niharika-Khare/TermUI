@@ -36,7 +36,7 @@ all: build
 	$(BIN_DIR)/test
 	$(BIN_DIR)/termui
 
-build: $(BIN_DIR) $(BUILD_DIR) commands termui test
+build: $(BIN_DIR) $(BUILD_DIR) termui commands test
 
 clean:
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
@@ -60,9 +60,9 @@ $(CMD_BUILD_DIR)/%.o: $(CMD_SRC_DIR)/%.c $(DEPS)
 
 $(CMD_BIN_DIR)/%: $(CMD_BUILD_DIR)/%.o
 	@mkdir -p $(dir $@)
-	$(CC) $< -o $@ $(CFLAGS) 
+	$(CC) $< -o $@ 
 
-commands: $(CMD)
+commands: $(CMD_OBJ) $(CMD)
 
 # Object file creation
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(DEPS)
