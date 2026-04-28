@@ -13,7 +13,6 @@ static int exit_status;
 void ls(int flags, char *dir_name) {
     DIR* dir;
     Dirent * d;
-    exit_status = 0;
 
     if ((dir = opendir(dir_name)) == NULL) {
         char err_buf[512];

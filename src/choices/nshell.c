@@ -1,5 +1,5 @@
-#include"nshell.h"
-#include"terminal.h"
+#include "nshell.h"
+#include "terminal.h"
 
 static const char nshell_prompt[] = BOLD_TEXT_ON \
                                     "\n[%s]\nnshell: " \
@@ -274,6 +274,7 @@ static int parse_commands(char *buffer, Command * root_command) {
                 memcpy(command->cmd_params[param_cnt++], token, token_len+1);
             }
             else if (param_cnt >= MAX_TOKEN_COUNT-1) {
+
                 log_shell_err("err: too many command parameters, should be less than: %d\n", MAX_TOKEN_COUNT);
                 return 0;
             }
@@ -346,7 +347,7 @@ static int execute_commands(Command *command) {
                     if (apply_io_redirect(command) == -1) {
                         return 0;
                     }
-                    char path[50] = CMD_PATH;
+                    char path[PATH_MAX] = CMD_PATH;
                     strcat(path, command->cmd);
 
                     char *args[MAX_TOKEN_COUNT];
