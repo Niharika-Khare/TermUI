@@ -1,4 +1,5 @@
 #include "ls.h"
+#include "common.h"
 
 static inline void set_flag(int *flags, int flag) {
     *flags =  *flags | flag;
@@ -15,9 +16,7 @@ void ls(int flags, char *dir_name) {
     Dirent * d;
 
     if ((dir = opendir(dir_name)) == NULL) {
-        char err_buf[512];
-        int bytes = snprintf(err_buf, sizeof(err_buf), "ls: unable to open: %s\n", dir_name); 
-        write(STDERR_FILENO, err_buf, bytes);
+        log_err("ls: unable to open: %s\n", dir_name);
         exit_status = 1;
         return;
     }
