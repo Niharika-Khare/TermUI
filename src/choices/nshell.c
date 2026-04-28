@@ -12,6 +12,9 @@ static const char *io_redirectives[] = { "<", ">", ">>", "2>", "&>" };
 static const char *unsupported_tools[] = { ";", "#", "&", "$", "\\" };
 
 static char path[PATH_MAX];
+static int stdin_org_fd;
+static int stdout_org_fd;
+static int stderr_org_fd;
 
 static inline void log_shell_err(const char *err_msg, ...) {
     char err_buff[500];
@@ -31,17 +34,36 @@ static inline void log_shell_info(const char *info_msg, ...) {
     write(STDOUT_FILENO, info_buff, bytes);
 }
 
+static inline void setup_file_decriptors() {
+    stdin_org_fd = dup(STDIN_FILENO);
+    stdout_org_fd = dup(STDOUT_FILENO);
+    stderr_org_fd = dup(STDERR_FILENO);
+}
+
+static inline void reset_file_descriptors() {
+    dup2(stdin_org_fd, STDIN_FILENO);
+    dup2(stdout_org_fd, STDOUT_FILENO);
+    dup2(stderr_org_fd, STDERR_FILENO);
+}
+
+static inline void close_file_descriptors() {
+    close(stdin_org_fd);
+    close(stdout_org_fd);
+    close(stderr_org_fd);
+}
+
+static inline void setup_nshell_terminal() {
+    setup_file_decriptors();
+    clear_terminal();
+    canonical_mode();
+    getcwd(path, PATH_MAX);
+}
+
 static inline void print_prompt() {
     char buffer[PATH_MAX + sizeof(nshell_prompt) + 1];
     int bytes = snprintf(buffer, PATH_MAX + sizeof(nshell_prompt) + 1, nshell_prompt, path);
     write(STDOUT_FILENO, buffer, bytes);           
 }                        
-
-static inline void setup_nshell_terminal() {
-    clear_terminal();
-    canonical_mode();
-    getcwd(path, PATH_MAX);
-}
 
 static inline int read_cmd(char* buffer) {
     int bytes = read(STDIN_FILENO, buffer, MAX_READ_BUFFER - 1);
@@ -81,6 +103,65 @@ static inline int is_unsupported_tool(char * token) {
     return 0;
 }
 
+static void inline save_history() {
+    log_shell_info("\n\n[ Saving history... ]\n");
+    // Save history
+    log_shell_info("[ History saved... ]\n");
+    log_shell_info("[ Exiting nshell... ]\n");
+}
+
+static inline int apply_io_redirect(Command *command) {
+    if (command->io_rd_cnt > 0) {
+        int fd;
+        for (int i=0; i<command->io_rd_cnt; i++) {
+            if (strcmp(command->io_rd[i].redirect, "<") == 0) {
+                fd = open(command->io_rd[i].filename, O_RDONLY);
+                if (fd == -1) {
+                    log_shell_err("err: file not found: %s\n", command->io_rd[i].filename);
+                    return -1;
+                }
+                dup2(fd, STDIN_FILENO);
+            } 
+            else if (strcmp(command->io_rd[i].redirect, ">") == 0) {
+                fd = open(command->io_rd[i].filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (fd == -1) {
+                    log_shell_err("err: file not found: %s\n", command->io_rd[i].filename);
+                    return -1;
+                }
+                dup2(fd, STDOUT_FILENO);
+            }
+            else if (strcmp(command->io_rd[i].redirect, "2>") == 0) {
+                fd = open(command->io_rd[i].filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (fd == -1) {
+                    log_shell_err("err: file not found: %s\n", command->io_rd[i].filename);
+                    return -1;
+                }
+                dup2(fd, STDERR_FILENO);
+            }
+            else if (strcmp(command->io_rd[i].redirect, ">>") == 0) {
+                fd = open(command->io_rd[i].filename, O_WRONLY | O_APPEND | O_CREAT , 0644);
+                if (fd == -1) {
+                    log_shell_err("err: file not found: %s\n", command->io_rd[i].filename);
+                    return -1;
+                }
+                dup2(fd, STDOUT_FILENO);
+            }
+            else if (strcmp(command->io_rd[i].redirect, "&>") == 0) {
+                fd = open(command->io_rd[i].filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (fd == -1) {
+                    log_shell_err("err: file not found: %s\n", command->io_rd[i].filename);
+                    return -1;
+                }
+                dup2(fd, STDOUT_FILENO);
+                dup2(fd, STDERR_FILENO);
+            }
+            if (fd != -1) {
+                close(fd);
+            }
+        }
+    }
+    return 0;
+}
 
 /*
  * Tokenizes the raw input buffer and builds a linked Command tree rooted at root_command. 
@@ -94,7 +175,6 @@ static inline int is_unsupported_tool(char * token) {
  * missing filename after redirect, token overflow, dangling connector, etc.). Errors
  * are written directly to stderr via log_shell_err.
  */
-
 static int parse_commands(char *buffer, Command * root_command) {
     
     Command *command = root_command;
@@ -207,27 +287,31 @@ static int parse_commands(char *buffer, Command * root_command) {
 }
 
 /**
- * Excute the commands sequentially after parsing
+ * Execute the commands sequentially after parsing
  */
 static int execute_commands(Command *command) {
     int success = 1;
     while (command) {
-        if (*command->cmd && command->io_rd_cnt > 0) {
-
-        }
         if (*command->cmd) {
             success = 1;
             if (memcmp(command->cmd, BI_EXIT, sizeof(BI_EXIT)) == 0) {
                 return 1;
             }
             else if (memcmp(command->cmd, BI_CD, sizeof(BI_CD)) == 0) {
+                if (apply_io_redirect(command) == -1) {
+                    return 0;
+                }
                 if (command->param_cnt < 2 || chdir(command->cmd_params[1]) == -1) {
                     log_shell_err("err: cd: invalid path: %s\n", command->cmd_params[1]);
                     success = 0;
                 } 
                 getcwd(path, PATH_MAX);
+                reset_file_descriptors();
             }
             else if (memcmp(command->cmd, BI_PWD, sizeof(BI_PWD)) == 0) {
+                if (apply_io_redirect(command) == -1) {
+                    return 0;
+                }
                 char path[PATH_MAX];
                 if (getcwd(path, PATH_MAX) == NULL) {
                     log_shell_err("err: pwd: unable to get current working directory\n");
@@ -238,8 +322,12 @@ static int execute_commands(Command *command) {
                     int bytes = snprintf(buffer, PATH_MAX + 2, "%s\n", path);
                     write(STDOUT_FILENO, buffer,  bytes);
                 }
+                reset_file_descriptors();
             }
             else if (memcmp(command->cmd, BI_ECHO, sizeof(BI_ECHO)) == 0) {
+                if (apply_io_redirect(command) == -1) {
+                    return 0;
+                }
                 char buffer[2048];
                 int bytes = 0;
                 for (int i=1; i<command->param_cnt && bytes < 2048; i++) {
@@ -247,6 +335,7 @@ static int execute_commands(Command *command) {
                 }
                 buffer[bytes] = '\n';
                 write(STDOUT_FILENO, buffer, bytes + 1);
+                reset_file_descriptors();
             }
             else {
                 pid_t cmd_pid = fork();
@@ -254,6 +343,9 @@ static int execute_commands(Command *command) {
                     log_shell_err("err: encountered error in execution of: %s\n", command->cmd);
                     break;
                 } else if (cmd_pid == 0) {
+                    if (apply_io_redirect(command) == -1) {
+                        return 0;
+                    }
                     char path[50] = CMD_PATH;
                     strcat(path, command->cmd);
 
@@ -268,9 +360,10 @@ static int execute_commands(Command *command) {
                         exit(1);
                     }
                 } else {
-                    wait(NULL);
-                    // TODO: if child returns failed then 
-                    // success = 0;
+                    int status;
+                    if (wait(&status) != -1) {
+                        success = WEXITSTATUS(status) == 0;
+                    }
                 }
             }
             if (*command->tool) {
@@ -284,8 +377,7 @@ static int execute_commands(Command *command) {
             } 
             command = command->next_cmd;
         } else {
-            break;
-            
+            break;  
         }
     }
     return 0;
@@ -330,15 +422,14 @@ int nshell() {
             }
 
             clear_space(root_command.next_cmd);
-
+            reset_file_descriptors();
             // add to history buffer
         }
     } while (!exit_status);
 
-    log_shell_info("\n\n[ Saving history... ]\n");
-    // Save history
-    log_shell_info("[ History saved... ]\n");
-    log_shell_info("[ Exiting nshell... ]\n");
+    close_file_descriptors();
+    save_history();
+    
     getc(stdin);
     return 0;
 }

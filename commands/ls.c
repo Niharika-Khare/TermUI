@@ -99,7 +99,7 @@ int main(int argc, char ** argv) {
         ls(flags, dir_list[i]);
     }
 
-    write(STDOUT_FILENO, buffer, buf_len + 2);
+    write(STDOUT_FILENO, buffer, buf_len);
     free(buffer);
 
     return exit_status;

@@ -1,6 +1,7 @@
 #ifndef _N_SHELL_
 #define _N_SHELL_
 
+#include <fcntl.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
