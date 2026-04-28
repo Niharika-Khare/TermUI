@@ -11,8 +11,6 @@ static const char *io_redirectives[] = { "<", ">", ">>", "2>", "&>" };
 
 static const char *unsupported_tools[] = { ";", "#", "&", "$", "\\" };
 
-static const char *built_ins[] = { "cd", "exit" };
-
 static char path[PATH_MAX];
 
 static inline void log_shell_err(const char *err_msg, ...) {
@@ -34,12 +32,9 @@ static inline void log_shell_info(const char *info_msg, ...) {
 }
 
 static inline void print_prompt() {
-    char *buffer;
-    int size = PATH_MAX + strlen(nshell_prompt) + 1;
-    buffer = malloc(size);
-    int bytes = snprintf(buffer, size, nshell_prompt, path);
-    write(STDOUT_FILENO, buffer, bytes + 1);           
-    free(buffer);
+    char buffer[PATH_MAX + sizeof(nshell_prompt) + 1];
+    int bytes = snprintf(buffer, PATH_MAX + sizeof(nshell_prompt) + 1, nshell_prompt, path);
+    write(STDOUT_FILENO, buffer, bytes);           
 }                        
 
 static inline void setup_nshell_terminal() {
@@ -86,6 +81,20 @@ static inline int is_unsupported_tool(char * token) {
     return 0;
 }
 
+
+/*
+ * Tokenizes the raw input buffer and builds a linked Command tree rooted at root_command. 
+ * Each whitespace-delimited token is classified as: 
+ *  1. A command name/ command argument, 
+ *  2. An IO redirect operator (<, >, >>, 2>, &>)
+ *  3. An IO redirect filename (expected immediately after a redirect via the wait_on_fname flag)
+ *  4. A pipeline/logical connector (&&, ||, |) — which allocates the next Command node in the chain.
+ * 
+ * Returns 1 on success, 0 on any parse error (unsupported operators (both io redirect and pipeline),
+ * missing filename after redirect, token overflow, dangling connector, etc.). Errors
+ * are written directly to stderr via log_shell_err.
+ */
+
 static int parse_commands(char *buffer, Command * root_command) {
     
     Command *command = root_command;
@@ -102,6 +111,7 @@ static int parse_commands(char *buffer, Command * root_command) {
 
         while (token_len < MAX_TOKEN_LEN
             && *buffer != ' ' 
+            && *buffer != '\t'
             && *buffer != '\n' 
             && *buffer != '\0') {
                 token[token_len++] = *buffer++;
@@ -116,9 +126,9 @@ static int parse_commands(char *buffer, Command * root_command) {
 
             token[token_len] = '\0';
             
-            if (is_io_redirective(token) || wait_on_fname) {
+            if (wait_on_fname) {
 
-                if (!command->cmd || is_supported_tool(token)) {
+                if (!*command->cmd || is_supported_tool(token)) {
                     log_shell_err("err: parse error near: %s\n", token);
                     return 0;
                 }
@@ -126,69 +136,70 @@ static int parse_commands(char *buffer, Command * root_command) {
                     log_shell_err("err: parse error near: %s\n%s not supported yet\n", token, token);
                     return 0;
                 }
-                if (io_rd_cnt == MAX_IO_REDIRECTS) {
-                    log_shell_err("err: to many io redirects!!\n");
-                    return 0;
-                }
-                if (wait_on_fname && is_io_redirective(token)) {
+                if (is_io_redirective(token)) {
                     log_shell_err("err: missing filename for io redirection\n");
                     return 0;
                 }
-                if (wait_on_fname) {
-                    
-                    command->io_rd[io_rd_cnt].filename = malloc(token_len+1);
-                    memcpy(command->io_rd[io_rd_cnt].filename, token, token_len+1);
-                    command->io_rd_cnt = ++io_rd_cnt;
-                    wait_on_fname = 0;
-                } 
-                else {
-
-                    command->io_rd[io_rd_cnt].redirect = malloc(token_len+1);
-                    memcpy(command->io_rd[io_rd_cnt].redirect, token, token_len+1);
-                    wait_on_fname = 1;
+                if (io_rd_cnt >= MAX_IO_REDIRECTS) {
+                    log_shell_err("err: too many io redirects!!\n");
+                    return 0;
                 }
-            }
-            else if (is_supported_tool(token)) {
 
-                if (!command->cmd || wait_on_fname) {
+                memcpy(command->io_rd[io_rd_cnt].filename, token, token_len+1);
+                command->io_rd_cnt = ++io_rd_cnt;
+                wait_on_fname = 0;
+            }
+            else if (is_io_redirective(token)) {
+
+                if (!*command->cmd) {
                     log_shell_err("err: parse error near: %s\n", token);
                     return 0;
                 }
-                command->tool = malloc(token_len+1);
-                command->next_cmd = malloc(sizeof(Command));
-                memset(command->next_cmd, 0, sizeof(Command));
-                
+                if (io_rd_cnt >= MAX_IO_REDIRECTS) {
+                    log_shell_err("err: too many io redirects!!\n");
+                    return 0;
+                }
+
+                memcpy(command->io_rd[io_rd_cnt].redirect, token, token_len+1);
+                wait_on_fname = 1;
+            }
+            else if (is_supported_tool(token)) {
+
+                if (!*command->cmd) {
+                    log_shell_err("err: parse error near: %s\n", token);
+                    return 0;
+                }
+
                 param_cnt = 0;
                 io_rd_cnt = 0;
                 memcpy(command->tool, token, token_len+1);
+                command->next_cmd = malloc(sizeof(Command));
+                memset(command->next_cmd, 0, sizeof(Command));
                 command = command->next_cmd;
             } 
             else if (is_unsupported_tool(token)) {
+
                 log_shell_err("err: nshell does not support this shell tool yet: %s\n", token);
                 return 0;
             }
-            else if (!command->cmd) {
-                command->cmd = malloc(token_len+1);
-                command->cmd_params[param_cnt] = malloc(token_len+1);
+            else if (!*command->cmd) {
 
                 command->param_cnt = param_cnt + 1;
                 memcpy(command->cmd_params[param_cnt++], token, token_len+1);
                 memcpy(command->cmd, token, token_len+1);
             }  
-            else if (param_cnt < MAX_TOKEN_COUNT) {
-                command->cmd_params[param_cnt] = malloc(token_len+1);
+            else if (param_cnt < MAX_TOKEN_COUNT-1) {
 
                 command->param_cnt = param_cnt + 1;
                 memcpy(command->cmd_params[param_cnt++], token, token_len+1);
             }
-
-            if (param_cnt == MAX_TOKEN_COUNT) {
+            else if (param_cnt >= MAX_TOKEN_COUNT-1) {
                 log_shell_err("err: too many command parameters, should be less than: %d\n", MAX_TOKEN_COUNT);
                 return 0;
             }
         } 
     }
-    if ((!command->cmd && command != root_command) || wait_on_fname) {
+    if ((!*command->cmd && command != root_command) || wait_on_fname) {
         log_shell_err("err: incorrect termination to command sequence\n");
         return 0;
     } 
@@ -201,10 +212,10 @@ static int parse_commands(char *buffer, Command * root_command) {
 static int execute_commands(Command *command) {
     int success = 1;
     while (command) {
-        if (command->cmd && command->io_rd_cnt > 0) {
+        if (*command->cmd && command->io_rd_cnt > 0) {
 
         }
-        if (command->cmd) {
+        if (*command->cmd) {
             success = 1;
             if (memcmp(command->cmd, BI_EXIT, sizeof(BI_EXIT)) == 0) {
                 return 1;
@@ -223,7 +234,9 @@ static int execute_commands(Command *command) {
                     success = 0;
                 }
                 else {
-                    write(STDOUT_FILENO, path, strlen(path) + 1);
+                    char buffer[PATH_MAX+2];
+                    int bytes = snprintf(buffer, PATH_MAX + 2, "%s\n", path);
+                    write(STDOUT_FILENO, buffer,  bytes);
                 }
             }
             else if (memcmp(command->cmd, BI_ECHO, sizeof(BI_ECHO)) == 0) {
@@ -233,7 +246,7 @@ static int execute_commands(Command *command) {
                     bytes += snprintf(buffer + bytes, strlen(command->cmd_params[i]) + 2, "%s ", command->cmd_params[i]);
                 }
                 buffer[bytes] = '\n';
-                write(STDOUT_FILENO, buffer, bytes);
+                write(STDOUT_FILENO, buffer, bytes + 1);
             }
             else {
                 pid_t cmd_pid = fork();
@@ -243,7 +256,14 @@ static int execute_commands(Command *command) {
                 } else if (cmd_pid == 0) {
                     char path[50] = CMD_PATH;
                     strcat(path, command->cmd);
-                    if (execv(path, command->cmd_params) < 0) {
+
+                    char *args[MAX_TOKEN_COUNT];
+                    for (int i=0; i<command->param_cnt; i++) {
+                        args[i] =  command->cmd_params[i];
+                    }
+                    args[command->param_cnt] = NULL;
+
+                    if (execv(path, args) < 0) {
                         log_shell_err("err: command not found: %s\n", command->cmd);
                         exit(1);
                     }
@@ -253,7 +273,7 @@ static int execute_commands(Command *command) {
                     // success = 0;
                 }
             }
-            if (command->tool) {
+            if (*command->tool) {
                 if (memcmp(command->tool, "||", sizeof("||")) == 0 && success) {
                     return 0;
                 } else if (memcmp(command->tool, "&&", sizeof("&&")) == 0 && !success) {
@@ -278,18 +298,6 @@ static int execute_commands(Command *command) {
 void clear_space(Command *command) {
     if (command != NULL) {
         clear_space(command->next_cmd);
-        free(command->cmd);
-        free(command->tool);
-        for(int i = 0 ; i < command->param_cnt; i++) {
-            free(command->cmd_params[i]);
-        }
-        for (int i =0 ; i < command->io_rd_cnt; i++) {
-            free(command->io_rd[i].redirect);
-            free(command->io_rd[i].filename);
-        }
-        if (command->io_rd[command->io_rd_cnt].redirect != NULL) {
-            free (command->io_rd[command->io_rd_cnt].redirect);
-        }
         free(command);
     }
 }
@@ -312,17 +320,16 @@ int nshell() {
         int bytes = read_cmd(buffer);
 
         if (bytes > 0) {
-            Command *root_command;
-            root_command = malloc(sizeof(Command));
-            memset(root_command, 0, sizeof(Command));
+            Command root_command;
+            memset(&root_command, 0, sizeof(Command));
 
-            int parsing_status = parse_commands(buffer, root_command);
+            int parsing_status = parse_commands(buffer, &root_command);
 
             if (parsing_status) {
-                exit_status = execute_commands(root_command);
+                exit_status = execute_commands(&root_command);
             }
 
-            clear_space(root_command);
+            clear_space(root_command.next_cmd);
 
             // add to history buffer
         }
