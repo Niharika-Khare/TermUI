@@ -39,6 +39,7 @@ static inline void print_prompt() {
     buffer = malloc(size);
     int bytes = snprintf(buffer, size, nshell_prompt, path);
     write(STDOUT_FILENO, buffer, bytes + 1);           
+    free(buffer);
 }                        
 
 static inline void setup_nshell_terminal() {
@@ -282,9 +283,12 @@ void clear_space(Command *command) {
         for(int i = 0 ; i < command->param_cnt; i++) {
             free(command->cmd_params[i]);
         }
-        for (int i =0 ; i< command->io_rd_cnt; i++) {
+        for (int i =0 ; i < command->io_rd_cnt; i++) {
             free(command->io_rd[i].redirect);
             free(command->io_rd[i].filename);
+        }
+        if (command->io_rd[command->io_rd_cnt].redirect != NULL) {
+            free (command->io_rd[command->io_rd_cnt].redirect);
         }
         free(command);
     }
