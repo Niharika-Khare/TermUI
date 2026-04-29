@@ -1,12 +1,6 @@
 #include "common.h"
 #include "cat.h"
 
-/* command flags */
-#define B_                  1
-#define N_                  2
-
-#define MAX_FILE_COUNT      20
-
 static void parse_params(int *flags, char ** argv, char ** f_list) {
     while (*++argv) {
         if (strcmp(*argv, "-b") == 0) {
@@ -37,7 +31,7 @@ int main(int argc, char ** argv) {
             exit_status = 1;
             continue;
         }
-        char buffer[2048];
+        char buffer[MAX_BUFFER_SIZE];
         int bytes = 0;
         while ((bytes = read(fd, buffer, sizeof (buffer)))) {
             write(STDOUT_FILENO, buffer, bytes);
