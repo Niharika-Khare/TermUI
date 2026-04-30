@@ -15,4 +15,14 @@ void log_err(char * err_msg, ...) {
     va_end(args);
 }
 
+void log_info(char * msg, ...) {
+
+    char buffer[2048];
+    va_list args;
+    va_start(args, msg);
+    int bytes = vsnprintf(buffer, sizeof(buffer), msg, args);
+    write(STDERR_FILENO, buffer, bytes);
+    va_end(args);
+}
+
 #endif /** _COMMON_ */
