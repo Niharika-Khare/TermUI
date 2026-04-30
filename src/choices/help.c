@@ -1,15 +1,16 @@
-#include"help.h"
-#include<stdio.h>
+#include "help.h"
+#include "terminal.h"
 
-/**
- * Placeholder      
- * 
- * TODO: Add actual logic for Help
- */ 
+static void display_info() {
+    
+}
+
 int help() {
-
-    printf("Help\n");
-    getc(stdin);
-
-    return 0;
+    Winsize w;
+    get_window_size(&w);
+    clear_terminal();
+    display_info();
+    relocate_cursor(0,0);
+    POS cursor_pos = cursor_scroll(w.ws_row, HORIZONTAL_NAV);
+    return cursor_pos.c_vert;
 }
