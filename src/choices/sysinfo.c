@@ -1,6 +1,6 @@
-#include"sysinfo.h"
-#include"terminal.h"
-#include<stdio.h>
+#include "sysinfo.h"
+#include "terminal.h"
+#include <stdio.h>
 
 static void display_info() {
     OsInfo os_info;
@@ -13,10 +13,12 @@ static void display_info() {
 
 }
 
-
 int system_info() {
+    Winsize w;
+    get_window_size(&w);
     clear_terminal();
     display_info();
     relocate_cursor(0,0);
-    return cursor_scroll(1000, HORIZONTAL_NAV);
+    POS cursor_pos = cursor_scroll(w.ws_row, HORIZONTAL_NAV);
+    return cursor_pos.c_vert;
 }

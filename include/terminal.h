@@ -24,22 +24,37 @@
 #define RIGHT_ARROW             "\033[C"
 #define LEFT_ARROW              "\033[D"
 #define QUIT                    'q'
-#define _QUIT                    'q'
+#define _QUIT                   'q'
+
+/**
+ * Application specific codes
+ */
+#define ESCAPE_CODE             -2
+#define QUIT_CODE               -1
+#define RIGHT_TRAV_CODE         -2
+#define LEFT_TRAV_CODE          -1
 
 /**
  * Control flags for keyboard actions
  */
 #define HORIZONTAL_NAV          1   
 #define DIRECTORY_TRAVERSAL     2 
-#define NEW_LINE_ENABLED        4 
+#define ENTER_ENABLED           4 
+
 
 typedef struct winsize Winsize;
+
+typedef struct pos {
+    int c_horz;
+    int c_vert;
+} POS;
+
 
 void relocate_cursor(int x, int y);
 void clear_terminal();
 void get_window_size(Winsize * w);
 int canonical_mode();
 int non_canonical_mode();
-int cursor_scroll(int scroll_len, int control_flags);
+POS cursor_scroll(int scroll_len, int control_flags);
 
 #endif /*_TERMINAL_H_*/

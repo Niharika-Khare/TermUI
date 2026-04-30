@@ -10,19 +10,22 @@ void run_app() {
     do {
         MessageProp prop;
         if (!render_home_screen(&prop)) {
-            choice = cursor_scroll(prop.choice_cnt, NEW_LINE_ENABLED);
+            POS cursor_pos = cursor_scroll(prop.choice_cnt, ENTER_ENABLED);
+            choice = cursor_pos.c_vert;
             choice = process_choice(choice, prop.choice_cnt);
         } 
     } 
-    while (choice != -1);
+    while (choice != QUIT_CODE);
 } 
 
 void exit_app() {
     clear_terminal();
+    
     if (canonical_mode() == -1) {
         char err_msg[] = "Exiting TermUI application abnormally...\n";
         write(STDERR_FILENO, err_msg, sizeof(err_msg)-1);
-    } else {
+    } 
+    else {
         char msg[] = "Exiting TermUI application...\n";
         write(STDOUT_FILENO, msg, sizeof(msg)-1);
     }    

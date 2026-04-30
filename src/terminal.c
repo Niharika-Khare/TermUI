@@ -99,11 +99,10 @@ int non_canonical_mode() {
     return set_terminal(&t, STDIN_FILENO);
 }
 
-
 /**
  * Based on the content length (scroll_len), move the cursor to navigate any list
  */
-int cursor_scroll(int scroll_len, int control_flags) {
+POS cursor_scroll(int scroll_len, int control_flags) {
     Winsize w;
     get_window_size(&w);
     int vert_lim = scroll_len < w.ws_row ? scroll_len: w.ws_row;
@@ -112,17 +111,24 @@ int cursor_scroll(int scroll_len, int control_flags) {
     int cursor_ver = 0, cursor_horz = 0;
     char buf[10];
 
+    POS pos;
     while (1) {
         int bytes = read(STDIN_FILENO, buf, 10);
         if (bytes == 1) {
-            if (buf[0] == NEW_LINE && control_flags & NEW_LINE_ENABLED) {
-                return cursor_ver+1;
+
+            pos.c_horz = cursor_horz;
+            pos.c_vert = cursor_ver;
+
+            if (buf[0] == NEW_LINE && control_flags & ENTER_ENABLED) {
+                return pos;
             } 
             else if (buf[0] == ESCAPE) {
-                return 0;
+                pos.c_vert = ESCAPE_CODE;
+                return pos;
             } 
             else if (buf[0] == QUIT || buf[0] == _QUIT) {
-                return -1;
+                pos.c_vert = QUIT_CODE;
+                return pos;
             }
         }
         if (bytes == 3) {
@@ -145,10 +151,18 @@ int cursor_scroll(int scroll_len, int control_flags) {
                 }
             } 
             if (control_flags & DIRECTORY_TRAVERSAL) {
-                /**
-                 * TODO: Add for forward and backward directory navigation 
-                 *       when implementing explorer
-                 */
+
+                pos.c_horz = cursor_horz;
+                pos.c_vert = cursor_ver;
+
+                if (memcmp(buf, LEFT_ARROW, 3) == 0) {
+                    pos.c_horz = LEFT_TRAV_CODE;
+                    return pos;
+                } 
+                else if (memcmp(buf, RIGHT_ARROW, 3) == 0 && cursor_horz < horzt_lim-1) {
+                    pos.c_horz = RIGHT_TRAV_CODE;
+                    return pos;
+                }
             }
         }
     }

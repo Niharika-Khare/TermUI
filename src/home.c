@@ -26,10 +26,10 @@ static int get_header_line_count(char * header) {
 static int display_choice_menu(char **choice_menu, int choice_cnt) {
     char buffer[MAX_HOME_SCREEN_BUFFER];
     char header[] = DISABLE_LINE_WRAP \
-                    "**********************************************************************\n" \
-                    "                WELCOME TO TERMINAL UI APPLICATION                    \n" \
+                    "**********************************************************************\n"   \
+                    "                WELCOME TO TERMINAL UI APPLICATION                    \n"   \
                     "**********************************************************************\n\n" \
-                    "Select one of the choice_menu (Press q/Q to quit application):        \n" \
+                    "Select one of the choice_menu (Press q/Q to quit application):        \n"   \
                     ENABLE_LINE_WRAP ;
     int len = snprintf(buffer, sizeof(buffer), "%s", header);
     for (int i=0; i<choice_cnt; i++) {
@@ -77,18 +77,18 @@ int render_home_screen(MessageProp * prop) {
 /**
  * Select appropriate response for the user choice.
  * 
- * -1 is returned by cursor_scroll when user presses 'q' or 'Q'
- * 0 is returned by cursor_scroll when user presses ESC to go back to home screen
+ * -1 is returned by cursor_scroll.c_ver when user presses 'q' or 'Q'
+ * -2 is returned by cursor_scroll.c_ver when user presses ESC to go back to home screen
  */
 int process_choice(int choice, int choice_cnt) {
     if (choice == -1) {
         return -1;
     } 
-    else if (choice == 0) {
-        return 0;
+    else if (choice == -2) {
+        return -2;
     } 
     else if (choice <= choice_cnt) {
-        return func[choice-1]();
+        return func[choice]();
     } 
     else {
         char err_msg[] = "Not a valid option!\n";
