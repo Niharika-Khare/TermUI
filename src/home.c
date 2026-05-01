@@ -70,29 +70,25 @@ int render_home_screen(MessageProp * prop) {
     prop->choice_cnt = choice_cnt;
 
     // Position the cursor for navigating the choice menu
-    relocate_cursor(prop->scroll_start, 0);
+    relocate_cursor(prop->scroll_start, 1);
     return 0;
 }
 
 /**
  * Select appropriate response for the user choice.
  * 
- * -1 is returned by cursor_scroll.c_ver when user presses 'q' or 'Q'
- * -2 is returned by cursor_scroll.c_ver when user presses ESC to go back to home screen
+ * QUIT_CODE is returned by cursor_scroll.c_ver when user presses 'q' or 'Q'
+ * ESCAPE_CODE is returned by cursor_scroll.c_ver when user presses ESC to go back to home screen
  */
 int process_choice(int choice, int choice_cnt) {
-    if (choice == -1) {
-        return -1;
+    if (choice == ESCAPE_CODE) {
+        return ESCAPE_CODE;
     } 
-    else if (choice == -2) {
-        return -2;
+    else if (choice == QUIT_CODE) {
+        return QUIT_CODE;
     } 
-    else if (choice <= choice_cnt) {
-        return func[choice]();
+    else if (choice >=1 && choice <= choice_cnt) {
+        return func[choice - 1]();
     } 
-    else {
-        char err_msg[] = "Not a valid option!\n";
-        write(STDOUT_FILENO, err_msg, sizeof(err_msg)-1);
-        return 0;
-    }
+    return choice;
 }
