@@ -4,8 +4,9 @@
 
 
 
+Winsize w;
 static char buffer[MAX_ENTRY_CNT][MAX_ENTRY_LENGTH];
-int b_start_ind = 0, b_end_ind = 0;
+int b_start_ind = 1, b_end_ind = 1;
 int header_offset = 0;
 
 static int dir_list[MAX_ENTRY_CNT];
@@ -16,19 +17,17 @@ static int nav_hist_cur_ind = 0, nav_hist_end = 0;
 
 
 
-static inline int print_header() {
+static inline int print_header(char * path) {
 
-    strcpy(buffer[b_end_ind++], "\n");
-    snprintf(buffer[b_end_ind++], MAX_ENTRY_LENGTH, LINE_FORMAT
-                                , SNO_HEADER, NAME_HEADER, PERMS_HEADER);
+    char h_buffer[MAX_HEADER_CNT][MAX_ENTRY_LENGTH];
+    memset(h_buffer, 0, sizeof(h_buffer));
+    int h_offset = 0;
 
-    strcpy(buffer[b_end_ind++], "\n");
-    
-    return b_end_ind;
-}
-
-static inline void print_footer() {
-
+    snprintf(h_buffer[h_offset++], MAX_ENTRY_LENGTH, "Directory Path: %s", path);
+    snprintf(h_buffer[h_offset++], MAX_ENTRY_LENGTH, LINE_FORMAT
+                                 , SNO_HEADER, NAME_HEADER, PERMS_HEADER);
+    write(STDOUT_FILENO, h_buffer, sizeof(h_buffer));
+    return h_offset;
 }
 
 static inline void initialize() {
@@ -37,11 +36,8 @@ static inline void initialize() {
     memset(dir_list, 0, sizeof(dir_list));
     memset(entry_name_list, 0, sizeof(entry_name_list));
     memset(nav_history, 0, sizeof(nav_history));
-    b_start_ind = b_end_ind = 0;
+    b_start_ind = b_end_ind = 1;
     nav_hist_cur_ind = nav_hist_end = 0;
-
-    
-    Winsize w;
     get_window_size(&w);
 
     relocate_cursor(0,0);
@@ -59,18 +55,53 @@ static int get_entry_info(Dirent* d, char * path) {
     strcpy(entry_name_list[b_end_ind], entry_name);
 
     Stat entry_stat;
-    char current_path[PATH_MAX];
-    snprintf(current_path, PATH_MAX, "%s/%s", path, entry_name);
-    stat(current_path, &entry_stat);
+    char full_path[PATH_MAX];
+    snprintf(full_path, PATH_MAX, "%s/%s", path, entry_name);
+    stat(full_path, &entry_stat);
 
     int entry_mode = entry_stat.st_mode;
     int entry_size = entry_stat.st_size;
     int entry_hard_links = entry_stat.st_nlink;
 
-    snprintf(buffer[b_end_ind], MAX_ENTRY_LENGTH, LINE_FORMAT, itoa(b_end_ind - header_offset + 1), entry_name, itoa(entry_mode));
+    snprintf(buffer[b_end_ind], MAX_ENTRY_LENGTH, LINE_FORMAT, itoa(b_end_ind), entry_name, itoa(entry_mode));
         
     b_end_ind++;
     return 0;
+}
+
+static inline char * get_current_path(char * new_path, char * old_path, char * dir_name) {
+
+    int p_len = strlen(old_path);
+    int d_len = strlen(dir_name);
+
+    if (memcmp(dir_name, "..", sizeof ("..")) == 0) {
+        int i;
+        for (i = p_len-1; i >= 0 && old_path[i] != '/'; i--);
+        if (i) {
+            memcpy(new_path, old_path, i);
+            new_path[i] = '\0';
+        }
+        else {
+            new_path[0] = '/';
+            new_path[1] = '\0';
+        }
+    } 
+    else if (memcmp(dir_name, ".", sizeof (".")) == 0) {       
+        memcpy(new_path, old_path, p_len);
+        new_path[p_len] = '\0';
+    } 
+    else if (p_len == 1) {   
+        new_path[0] = '/';                                  
+        memcpy(new_path + 1, dir_name, d_len);
+        new_path[1 + d_len] = '\0';
+    }
+    else {
+        memcpy(new_path, old_path, p_len);
+        new_path[p_len] = '/';
+        memcpy(new_path + p_len + 1, dir_name, d_len);
+        new_path[p_len + 1 + d_len] = '\0';
+    }
+    return new_path;
 }
 
 static int directory_display (char *path) {
@@ -78,27 +109,78 @@ static int directory_display (char *path) {
     DIR * d;
     if ((d = opendir(path))) {
 
-        header_offset = print_header();
+        header_offset = print_header(path);
         Dirent * entry;
         while ((entry = readdir(d))) {
             get_entry_info(entry, path);
         }
-        write(STDOUT_FILENO, buffer, sizeof(buffer));
-        relocate_cursor(header_offset + 1, 0);
-        
-        POS cursor_pos = cursor_scroll(b_end_ind - header_offset, ENTER_ENABLED | DIRECTORY_TRAVERSAL);
-        if (cursor_pos.c_vert == ESCAPE_CODE || cursor_pos.c_vert == QUIT_CODE) {
-            return cursor_pos.c_vert;
-        }
-        if (dir_list[header_offset + cursor_pos.c_vert]) {
-            char current_path[PATH_MAX];
-            snprintf(current_path, PATH_MAX, "%s/%s", path, entry_name_list[header_offset + cursor_pos.c_vert]);
-            return directory_display(current_path);
+        POS cursor_start = {1, 1};
+        int cursor_screen_pos = header_offset + 1;
+        do {
+            int scroll_len = min(w.ws_row - header_offset, b_end_ind - b_start_ind);
+            write(STDOUT_FILENO, &buffer[b_start_ind], sizeof(buffer[0]) * scroll_len);
+            relocate_cursor(cursor_screen_pos, 1);
+
+            POS cursor_pos = cursor_scroll(cursor_start, scroll_len, ENTER_ENABLED | DIRECTORY_TRAVERSAL);
+
+            if (cursor_pos.c_vert == ESCAPE_CODE || cursor_pos.c_vert == QUIT_CODE) {
+                return cursor_pos.c_vert;
+            }
+            else if (cursor_pos.c_vert == SCROLL_ONE_UP_CODE && b_start_ind > 0) {
+                relocate_cursor(header_offset, 0);
+                b_start_ind--;
+                cursor_screen_pos = header_offset + 1;;
+                cursor_start.c_vert = 1;
+                cursor_start.c_horz = 1;
+            }
+            else if (cursor_pos.c_vert == SCROLL_ONE_DOWN_CODE && b_end_ind - b_start_ind > w.ws_row - header_offset) {
+                relocate_cursor(header_offset, 0);
+                b_start_ind++;
+                cursor_screen_pos = w.ws_row;
+                cursor_start.c_vert = cursor_screen_pos - header_offset;
+                cursor_start.c_horz = 1;
+            }
+            else {
+                int entry_ind = cursor_pos.c_vert + b_start_ind - 1;
+                if (dir_list[entry_ind]) {
+                    char current_path[PATH_MAX];
+                    get_current_path(current_path, path, entry_name_list[entry_ind]);
+                    return directory_display(current_path);
+                }
+                else {
+                    clear_terminal();
+                    pid_t pid = fork();
+                    if (pid < 0) {
+                        log_err("err: Unable to open file %s", entry_name_list[entry_ind]);
+                    }
+                    else if (pid == 0) {
+                        char file_buffer[FILE_BLOCK_SIZE];
+                        char *f_name = entry_name_list[entry_ind];
+                        int bytes = 0, fd;
+                        if ((fd = open(f_name, O_RDONLY)) == -1) {
+                            while ((bytes = read(fd, file_buffer, FILE_BLOCK_SIZE))) {
+                                write(STDOUT_FILENO, file_buffer, bytes);
+                            }
+                        } else {
+                            log_err("err: unable to open file: %s\n", f_name);
+                        }
+                        relocate_cursor(1, 1);
+                        POS st = {1, 1}, pos;
+                        do {
+                            pos = cursor_scroll(st, w.ws_row, HORIZONTAL_NAV);
+                        }
+                        while (pos.c_vert != ESCAPE_CODE && pos.c_vert != QUIT_CODE);
+
+                        return pos.c_vert;
+                    } 
+                    else {
+                        wait(NULL);
+                        return directory_display(path);
+                    } 
+                }
+            }
         } 
-        else {
-            // open the file
-        }
-        return 0;
+        while (1);
     }
     return 0;
 }
@@ -133,7 +215,7 @@ int explorer() {
         getc(stdin);
         return ESCAPE_CODE;
     }
-    
+
     do {
         escape_exp = directory_display(path);
     }

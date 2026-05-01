@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#define min(a,b) (((a) < (b)) ? (a) : (b))
 
 static inline void log_err(char * err_msg, ...) {
 
@@ -34,5 +35,6 @@ static inline char* itoa(int i) {
     snprintf(str, sizeof(int) + 1, "%d", i);
     return str;
 }
+
 
 #endif /** _COMMON_ */
