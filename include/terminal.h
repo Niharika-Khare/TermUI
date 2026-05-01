@@ -1,12 +1,12 @@
 #ifndef _TERMINAL_H_
 #define _TERMINAL_H_
 
-#include<sys/ioctl.h>
-#include<termios.h>
-#include<unistd.h>
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /**
  * ANSI escape sequences
@@ -29,10 +29,12 @@
 /**
  * Application specific codes
  */
-#define ESCAPE_CODE             -2
-#define QUIT_CODE               -1
-#define RIGHT_TRAV_CODE         -2
 #define LEFT_TRAV_CODE          -1
+#define RIGHT_TRAV_CODE         -2
+#define SCROLL_ONE_UP_CODE      -3
+#define SCROLL_ONE_DOWN_CODE    -4
+#define ESCAPE_CODE             -5
+#define QUIT_CODE               -6
 
 /**
  * Control flags for keyboard actions
@@ -55,6 +57,6 @@ void clear_terminal();
 void get_window_size(Winsize * w);
 int canonical_mode();
 int non_canonical_mode();
-POS cursor_scroll(int scroll_len, int control_flags);
+POS cursor_scroll(POS start, int scroll_len, int control_flags);
 
 #endif /*_TERMINAL_H_*/

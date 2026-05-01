@@ -10,7 +10,8 @@ void run_app() {
     do {
         MessageProp prop;
         if (!render_home_screen(&prop)) {
-            POS cursor_pos = cursor_scroll(prop.choice_cnt, ENTER_ENABLED);
+            POS start = {1, 1};
+            POS cursor_pos = cursor_scroll(start, prop.choice_cnt, ENTER_ENABLED);
             choice = cursor_pos.c_vert;
             choice = process_choice(choice, prop.choice_cnt);
         } 

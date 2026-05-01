@@ -35,6 +35,7 @@ void get_window_size(Winsize * w) {
 
 /**
  * Move cursor to the specified coordinates
+ * \033[0;0H and \033[1;1H result in same cursor positions i.e start of the screen
  */
 void relocate_cursor(int x, int y) {
     char cursor_loc[15];
@@ -102,13 +103,13 @@ int non_canonical_mode() {
 /**
  * Based on the content length (scroll_len), move the cursor to navigate any list
  */
-POS cursor_scroll(int scroll_len, int control_flags) {
+POS cursor_scroll(POS start_pos, int scroll_len, int control_flags) {
     Winsize w;
     get_window_size(&w);
     int vert_lim = scroll_len < w.ws_row ? scroll_len: w.ws_row;
     int horzt_lim = w.ws_col;
 
-    int cursor_ver = 0, cursor_horz = 0;
+    int cursor_ver = start_pos.c_vert, cursor_horz = start_pos.c_horz;
     char buf[10];
 
     POS pos;
@@ -132,25 +133,43 @@ POS cursor_scroll(int scroll_len, int control_flags) {
             }
         }
         if (bytes == 3) {
-            if (memcmp(buf, UP_ARROW, 3) == 0 && cursor_ver > 0) {
-                cursor_ver--;
-                write(STDOUT_FILENO, UP_ARROW, sizeof(UP_ARROW));
+            if (memcmp(buf, UP_ARROW, 3) == 0) {
+
+                if (cursor_ver > 1) {
+                    cursor_ver--;
+                    write(STDOUT_FILENO, UP_ARROW, sizeof(UP_ARROW));
+                } 
+                else if (cursor_ver == 1) {
+                    pos.c_horz = cursor_horz;
+                    pos.c_vert = SCROLL_ONE_UP_CODE;
+                    return pos;
+                }
+                
             } 
-            else if (memcmp(buf, DOWN_ARROW, 3) == 0 && cursor_ver < vert_lim-1) {
-                cursor_ver++;
-                write(STDOUT_FILENO, DOWN_ARROW, sizeof(DOWN_ARROW));
+            if (memcmp(buf, DOWN_ARROW, 3) == 0) {
+
+                if (cursor_ver < vert_lim) {
+                    cursor_ver++;
+                    write(STDOUT_FILENO, DOWN_ARROW, sizeof(DOWN_ARROW));
+                }
+                else if (cursor_ver == vert_lim) {
+                    pos.c_horz = cursor_horz;
+                    pos.c_vert = SCROLL_ONE_DOWN_CODE;
+                    return pos;
+                }
             } 
+
             if (control_flags & HORIZONTAL_NAV) {
-                if (memcmp(buf, LEFT_ARROW, 3) == 0 && cursor_horz > 0) {
+                if (memcmp(buf, LEFT_ARROW, 3) == 0 && cursor_horz > 1) {
                     cursor_horz--;
                     write(STDOUT_FILENO, LEFT_ARROW, sizeof(LEFT_ARROW));
                 } 
-                else if (memcmp(buf, RIGHT_ARROW, 3) == 0 && cursor_horz < horzt_lim-1) {
+                else if (memcmp(buf, RIGHT_ARROW, 3) == 0 && cursor_horz < horzt_lim) {
                     cursor_horz++;
                     write(STDOUT_FILENO, RIGHT_ARROW, sizeof(RIGHT_ARROW));
                 }
             } 
-            if (control_flags & DIRECTORY_TRAVERSAL) {
+            else if (control_flags & DIRECTORY_TRAVERSAL) {
 
                 pos.c_horz = cursor_horz;
                 pos.c_vert = cursor_ver;
@@ -159,7 +178,7 @@ POS cursor_scroll(int scroll_len, int control_flags) {
                     pos.c_horz = LEFT_TRAV_CODE;
                     return pos;
                 } 
-                else if (memcmp(buf, RIGHT_ARROW, 3) == 0 && cursor_horz < horzt_lim-1) {
+                else if (memcmp(buf, RIGHT_ARROW, 3) == 0 && cursor_horz < horzt_lim) {
                     pos.c_horz = RIGHT_TRAV_CODE;
                     return pos;
                 }
