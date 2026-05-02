@@ -102,6 +102,7 @@ int non_canonical_mode() {
 
 /**
  * Based on the content length (scroll_len), move the cursor to navigate any list
+ * TODO: add a good explanation of what is happening here
  */
 POS cursor_scroll(POS start_pos, int scroll_len, int control_flags) {
     Winsize w;

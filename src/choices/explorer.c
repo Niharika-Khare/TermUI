@@ -23,8 +23,9 @@ static inline int print_header(char * path) {
     int h_offset = 0;
 
     snprintf(h_buffer[h_offset++], MAX_ENTRY_LENGTH, "Directory Path: %s", path);
-    snprintf(h_buffer[h_offset++], MAX_ENTRY_LENGTH, LINE_FORMAT
-                                 , SNO_HEADER, NAME_HEADER, PERMS_HEADER);
+    snprintf(h_buffer[h_offset++], MAX_ENTRY_LENGTH, DISABLE_LINE_WRAP LINE_FORMAT ENABLE_LINE_WRAP
+                                 , SNO_HEADER, NAME_HEADER, SIZE_HEADER, PERMS_HEADER
+                                 , USER_NAME_HEADER, GROUP_NAME_HEADER, MTIME_HEADER, HARD_LINK_HEADER);
     write(STDOUT_FILENO, h_buffer, sizeof(h_buffer));
     return h_offset;
 }
@@ -41,6 +42,50 @@ static inline void initialize() {
     clear_terminal();
 }
 
+static void h_perm(mode_t mode, char *h_perm) {
+    memcpy(h_perm, "---------", 11);
+
+    if (S_ISDIR(mode))  h_perm[0] = 'd';       // Directory
+    else if (S_ISLNK(mode))  h_perm[0] = 'l';  // Symlink
+    else if (S_ISCHR(mode))  h_perm[0] = 'c';  // Character device
+    else if (S_ISBLK(mode))  h_perm[0] = 'b';  // Block device
+    else if (S_ISFIFO(mode)) h_perm[0] = 'p';  // FIFO / Pipe
+    else if (S_ISSOCK(mode)) h_perm[0] = 's';  // Socket
+
+    if (mode & S_IRUSR) h_perm[1] = 'r';
+    if (mode & S_IWUSR) h_perm[2] = 'w';
+    if (mode & S_IXUSR) h_perm[3] = 'x';
+
+    if (mode & S_IRGRP) h_perm[4] = 'r';
+    if (mode & S_IWGRP) h_perm[5] = 'w';
+    if (mode & S_IXGRP) h_perm[6] = 'x';
+
+    if (mode & S_IROTH) h_perm[7] = 'r';
+    if (mode & S_IWOTH) h_perm[8] = 'w';
+    if (mode & S_IXOTH) h_perm[9] = 'x';
+
+    h_perm[10] = '\0';
+}
+
+static void h_size(size_t size, char * h_size) {
+
+    const char *units[] = {"B", "KB", "MB", "GB", "TB", "PB"};
+    int i = 0;
+    memset(h_size, 0, sizeof(size_t));
+    double display_size = (double) size;
+
+    while (display_size >= 1024.0 && i < 5) {
+        display_size /= 1024.0;
+        i++;
+    }
+    if (i == 0) {
+        snprintf(h_size, sizeof(size_t), "%zu%s", size, units[i]);
+    } else {
+        snprintf(h_size, sizeof(size_t), "%.2f%s", display_size, units[i]);
+    }
+
+}
+
 static int get_entry_info(Dirent* d, char * path) {
 
     if (b_end_ind >= MAX_ENTRY_CNT) {
@@ -55,12 +100,24 @@ static int get_entry_info(Dirent* d, char * path) {
     char full_path[PATH_MAX];
     snprintf(full_path, PATH_MAX, "%s/%s", path, entry_name);
     stat(full_path, &entry_stat);
+    Pwd * p = getpwuid(entry_stat.st_uid);
+    Grp * g = getgrgid(entry_stat.st_gid);
 
-    int entry_mode = entry_stat.st_mode;
     int entry_size = entry_stat.st_size;
-    int entry_hard_links = entry_stat.st_nlink;
 
-    snprintf(buffer[b_end_ind], MAX_ENTRY_LENGTH, LINE_FORMAT, itoa(b_end_ind), entry_name, itoa(entry_mode));
+    char entry_h_perm[11];
+    h_perm(entry_stat.st_mode, entry_h_perm);
+
+    char entry_h_size[sizeof(size_t)];
+    h_size(entry_stat.st_size, entry_h_size);
+
+    char *user_name = p ? p->pw_name : "-" ;
+    char *grp_name = g ? g->gr_name : "-" ;
+    char *mod_time = ctime(&entry_stat.st_mtime);
+
+    snprintf(buffer[b_end_ind], MAX_ENTRY_LENGTH, DISABLE_LINE_WRAP LINE_FORMAT ENABLE_LINE_WRAP, 
+                                    itoa(b_end_ind), entry_name, entry_h_size, entry_h_perm,
+                                    user_name, grp_name, mod_time, itoa(entry_stat.st_nlink));
         
     b_end_ind++;
     return 0;
@@ -107,6 +164,7 @@ static void store_nav_history(char * path) {
     nav_hist_cur = nav_hist_end - 1;
 }
 
+// TODO: add a good explanation of what is happening here
 static int directory_display (char *path) {
     initialize();
     DIR * d;
@@ -170,13 +228,14 @@ static int directory_display (char *path) {
                 }
                 else {
                     clear_terminal();
+                    char *f_name = entry_name_list[entry_ind];
                     pid_t pid = fork();
                     if (pid < 0) {
-                        log_err("err: Unable to open file %s", entry_name_list[entry_ind]);
+                        log_err("err: fork: unable to open file %s", f_name);
                     }
                     else if (pid == 0) {
                         char file_buffer[FILE_BLOCK_SIZE];
-                        char *f_name = entry_name_list[entry_ind];
+                        
                         int bytes = 0, fd;
                         if ((fd = open(f_name, O_RDONLY)) != -1) {
                             while ((bytes = read(fd, file_buffer, FILE_BLOCK_SIZE))) {
