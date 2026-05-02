@@ -18,7 +18,7 @@ typedef struct dirent Dirent;
 typedef struct stat Stat;
 
 
-#define LINE_FORMAT             "\n%4s.\t%20s\t%15s"
+#define LINE_FORMAT             "\n%4s.\t%20.20s\t%15s"
 #define SNO_HEADER              "S.no"
 #define NAME_HEADER             "Name"
 #define PERMS_HEADER            "Permissions"

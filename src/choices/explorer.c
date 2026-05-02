@@ -13,8 +13,7 @@ static int dir_list[MAX_ENTRY_CNT];
 static char entry_name_list[MAX_ENTRY_CNT][MAX_ENTRY_LENGTH];
 
 static char nav_history[MAX_HISTORY_CNT][PATH_MAX];
-static int nav_hist_cur_ind = 0, nav_hist_end = 0;
-
+static int nav_hist_cur = 0, nav_hist_end = 0;
 
 
 static inline int print_header(char * path) {
@@ -35,9 +34,7 @@ static inline void initialize() {
     memset(buffer, 0, sizeof(buffer));
     memset(dir_list, 0, sizeof(dir_list));
     memset(entry_name_list, 0, sizeof(entry_name_list));
-    memset(nav_history, 0, sizeof(nav_history));
     b_start_ind = b_end_ind = 1;
-    nav_hist_cur_ind = nav_hist_end = 0;
     get_window_size(&w);
 
     relocate_cursor(0,0);
@@ -104,6 +101,12 @@ static inline char * get_current_path(char * new_path, char * old_path, char * d
     return new_path;
 }
 
+static void store_nav_history(char * path) {
+    nav_hist_end = nav_hist_cur + 1;
+    strcpy(nav_history[nav_hist_end++], path);
+    nav_hist_cur = nav_hist_end - 1;
+}
+
 static int directory_display (char *path) {
     initialize();
     DIR * d;
@@ -126,25 +129,43 @@ static int directory_display (char *path) {
             if (cursor_pos.c_vert == ESCAPE_CODE || cursor_pos.c_vert == QUIT_CODE) {
                 return cursor_pos.c_vert;
             }
-            else if (cursor_pos.c_vert == SCROLL_ONE_UP_CODE && b_start_ind > 0) {
-                relocate_cursor(header_offset, 0);
-                b_start_ind--;
-                cursor_screen_pos = header_offset + 1;;
-                cursor_start.c_vert = 1;
-                cursor_start.c_horz = 1;
+            else if (cursor_pos.c_horz == LEFT_TRAV_CODE) {
+                if (nav_hist_cur > 1) {
+                    nav_hist_cur--;
+                }
+                return directory_display(nav_history[nav_hist_cur]);
             }
-            else if (cursor_pos.c_vert == SCROLL_ONE_DOWN_CODE && b_end_ind - b_start_ind > w.ws_row - header_offset) {
-                relocate_cursor(header_offset, 0);
-                b_start_ind++;
-                cursor_screen_pos = w.ws_row;
-                cursor_start.c_vert = cursor_screen_pos - header_offset;
-                cursor_start.c_horz = 1;
+            else if (cursor_pos.c_horz == RIGHT_TRAV_CODE) {
+
+                if (nav_hist_cur < nav_hist_end - 1) {
+                    nav_hist_cur++;
+                }
+                return directory_display(nav_history[nav_hist_cur]);
             }
-            else {
+            else if (cursor_pos.c_vert == SCROLL_ONE_UP_CODE) {
+                relocate_cursor(header_offset, 0);
+                if (b_start_ind > 0) {
+                    b_start_ind--;
+                    cursor_screen_pos = header_offset + 1;;
+                    cursor_start.c_vert = 1;
+                    cursor_start.c_horz = 1;
+                }
+            }
+            else if (cursor_pos.c_vert == SCROLL_ONE_DOWN_CODE) {
+                relocate_cursor(header_offset, 0);
+                if (b_end_ind - b_start_ind > w.ws_row - header_offset) {
+                    b_start_ind++;
+                    cursor_screen_pos = w.ws_row;
+                    cursor_start.c_vert = cursor_screen_pos - header_offset;
+                    cursor_start.c_horz = 1;
+                }
+            }
+            else if (cursor_pos.c_vert >= 0 && cursor_pos.c_horz >= 0) {
                 int entry_ind = cursor_pos.c_vert + b_start_ind - 1;
                 if (dir_list[entry_ind]) {
                     char current_path[PATH_MAX];
                     get_current_path(current_path, path, entry_name_list[entry_ind]);
+                    store_nav_history(current_path);
                     return directory_display(current_path);
                 }
                 else {
@@ -157,21 +178,21 @@ static int directory_display (char *path) {
                         char file_buffer[FILE_BLOCK_SIZE];
                         char *f_name = entry_name_list[entry_ind];
                         int bytes = 0, fd;
-                        if ((fd = open(f_name, O_RDONLY)) == -1) {
+                        if ((fd = open(f_name, O_RDONLY)) != -1) {
                             while ((bytes = read(fd, file_buffer, FILE_BLOCK_SIZE))) {
                                 write(STDOUT_FILENO, file_buffer, bytes);
                             }
+                            close(fd);
                         } else {
                             log_err("err: unable to open file: %s\n", f_name);
                         }
                         relocate_cursor(1, 1);
-                        POS st = {1, 1}, pos;
+                        POS st = {1, 1};
                         do {
-                            pos = cursor_scroll(st, w.ws_row, HORIZONTAL_NAV);
+                            st = cursor_scroll(st, w.ws_row, HORIZONTAL_NAV);
                         }
-                        while (pos.c_vert != ESCAPE_CODE && pos.c_vert != QUIT_CODE);
-
-                        return pos.c_vert;
+                        while (st.c_vert != ESCAPE_CODE && st.c_vert != QUIT_CODE);
+                        exit(0);
                     } 
                     else {
                         wait(NULL);
@@ -208,6 +229,7 @@ static int directory_display (char *path) {
  */
 int explorer() {
     int escape_exp = 0;
+    memset(nav_history, 0, sizeof(nav_history));
 
     char path[PATH_MAX];
     if (getcwd(path, PATH_MAX) == NULL) {
@@ -217,6 +239,7 @@ int explorer() {
     }
 
     do {
+        store_nav_history(path);
         escape_exp = directory_display(path);
     }
     while (escape_exp != ESCAPE_CODE && escape_exp != QUIT_CODE);
