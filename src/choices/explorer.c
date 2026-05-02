@@ -190,6 +190,12 @@ static int directory_display (char *path) {
                         POS st = {1, 1};
                         do {
                             st = cursor_scroll(st, w.ws_row, HORIZONTAL_NAV);
+                            if (st.c_vert == SCROLL_ONE_UP_CODE) {
+                                st.c_vert = 1;
+                            }
+                            else if (st.c_vert == SCROLL_ONE_DOWN_CODE) {
+                                st.c_vert = w.ws_row;
+                            }
                         }
                         while (st.c_vert != ESCAPE_CODE && st.c_vert != QUIT_CODE);
                         exit(0);
