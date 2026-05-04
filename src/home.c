@@ -1,19 +1,19 @@
-#include"explorer.h"
-#include"help.h"
-#include"history.h"
-#include"home.h"
-#include"nshell.h"
-#include"sysinfo.h"
-#include"terminal.h"
-#include<unistd.h>
-#include<stdio.h>
+#include "explorer.h"
+#include "help.h"
+#include "history.h"
+#include "home.h"
+#include "nshell.h"
+#include "sysinfo.h"
+#include "terminal.h"
+#include <unistd.h>
+#include <stdio.h>
 
 static char *choice_menu[] = {SYS_INFO, EXPLR, N_SHELL, HISTORY, HELP};
 
 /**
  * Array of pointers to functions for handling the user choice from choice_menu
  */
-static int (*func[])() = {system_info, explorer, nshell, history, help};
+static int (*func[])() = {system_info, explorer, nshell, view_history, help};
 
 static int get_header_line_count(char * header) {
     int num_line = 0;
@@ -88,6 +88,7 @@ int process_choice(int choice, int choice_cnt) {
         return QUIT_CODE;
     } 
     else if (choice >=1 && choice <= choice_cnt) {
+        save_history(choice_menu[choice-1]);
         return func[choice - 1]();
     } 
     return choice;

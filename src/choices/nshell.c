@@ -1,4 +1,5 @@
 #include "common.h"
+#include "history.h"
 #include "nshell.h"
 #include "terminal.h"
 
@@ -86,9 +87,7 @@ static inline int is_unsupported_tool(char * token) {
     return 0;
 }
 
-static void inline save_history() {
-    log_info("\n\n[ Saving history... ]\n");
-    // Save history
+static void inline exit_nshell() {
     log_info("[ History saved... ]\n");
     log_info("[ Exiting nshell... ]\n");
 }
@@ -407,12 +406,12 @@ int nshell() {
 
             clear_space(root_command.next_cmd);
             reset_file_descriptors();
-            // add to history buffer
+            save_history(buffer);
         }
     } while (!exit_status);
 
     close_file_descriptors();
-    save_history();
+    exit_nshell();
     
     getc(stdin);
     return 0;

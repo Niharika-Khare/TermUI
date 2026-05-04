@@ -1,9 +1,13 @@
-#include"terminal.h"
-#include"home.h"
-#include<stdio.h>
-#include<stdlib.h>
-#include<unistd.h>
-#include<stdarg.h>
+#include "history.h"
+#include "home.h"
+#include "terminal.h"
+#include <stdio.h>
+#include <unistd.h>
+
+
+void init_app() {
+    init_history();
+}
 
 void run_app() {
     int choice = -1;
@@ -33,6 +37,7 @@ void exit_app() {
 }
 
 int main(int argc, char **argv) { 
+    init_app();
     run_app();
     exit_app();
     return 0;
