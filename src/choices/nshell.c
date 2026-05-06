@@ -3,17 +3,14 @@
 #include "nshell.h"
 #include "terminal.h"
 
-static const char nshell_prompt[] = BOLD_TEXT_ON \
-                                    "\n[%s]\nnshell: " \
-                                    BOLD_TEXT_OFF;
+/**
+ * File descriptors and I/O handling : 
+ *      1. setup_file_decriptors
+ *      2. reset_file_descriptors
+ *      3. close_file_descriptors
+ *      4. apply_io_redirect
+ */
 
-static const char *supported_tools[] = { "&&", "|", "||" };
-
-static const char *io_redirectives[] = { "<", ">", ">>", "2>", "&>" };
-
-static const char *unsupported_tools[] = { ";", "#", "&", "$", "\\" };
-
-static char path[PATH_MAX];
 static int stdin_org_fd;
 static int stdout_org_fd;
 static int stderr_org_fd;
@@ -34,62 +31,6 @@ static inline void close_file_descriptors() {
     close(stdin_org_fd);
     close(stdout_org_fd);
     close(stderr_org_fd);
-}
-
-static inline void setup_nshell_terminal() {
-    setup_file_decriptors();
-    clear_terminal();
-    canonical_mode();
-    getcwd(path, PATH_MAX);
-}
-
-static inline void print_prompt() {
-    char buffer[PATH_MAX + sizeof(nshell_prompt) + 1];
-    int bytes = snprintf(buffer, PATH_MAX + sizeof(nshell_prompt) + 1, nshell_prompt, path);
-    write(STDOUT_FILENO, buffer, bytes);           
-}                        
-
-static inline int read_cmd(char* buffer) {
-    int bytes = read(STDIN_FILENO, buffer, MAX_READ_BUFFER - 1);
-    if (bytes > 0) {
-        buffer[bytes] = '\0';
-    }
-    return bytes;
-}
-
-static inline int is_io_redirective(char * token) {
-    int redirective_cnt = sizeof(io_redirectives)/sizeof(io_redirectives[0]);
-    for (int i=0; i<redirective_cnt; i++) {
-        if (strcmp(token, io_redirectives[i]) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static inline int is_supported_tool(char * token) {
-    int tool_cnt = sizeof(supported_tools)/sizeof(supported_tools[0]);
-    for (int i=0; i<tool_cnt; i++) {
-        if (strcmp(token, supported_tools[i]) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static inline int is_unsupported_tool(char * token) {
-    int tool_cnt = sizeof(unsupported_tools)/sizeof(unsupported_tools[0]);
-    for (int i=0; i<tool_cnt; i++) {
-        if (strcmp(token, unsupported_tools[i]) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static void inline exit_nshell() {
-    log_info("[ History saved... ]\n");
-    log_info("[ Exiting nshell... ]\n");
 }
 
 static inline int apply_io_redirect(Command *command) {
@@ -140,6 +81,93 @@ static inline int apply_io_redirect(Command *command) {
             if (fd != -1) {
                 close(fd);
             }
+        }
+    }
+    return 0;
+}
+
+
+/**
+ * nshell utilities:
+ *      1. setup_nshell_terminal
+ *      2. print_prompt
+ *      3. read_cmd
+ *      4. exit_nshell
+ * 
+ */
+
+static char path[PATH_MAX];
+
+static inline void setup_nshell_terminal() {
+    setup_file_decriptors();
+    clear_terminal();
+    canonical_mode();
+    getcwd(path, PATH_MAX);
+}
+
+static inline void print_prompt() {
+
+    static const char nshell_prompt[] = BOLD_TEXT_ON "\n[%s]\nnshell: " BOLD_TEXT_OFF;
+    char buffer[PATH_MAX + sizeof(nshell_prompt) + 1];
+
+    int bytes = snprintf(buffer, PATH_MAX + sizeof(nshell_prompt) + 1, nshell_prompt, path);
+    write(STDOUT_FILENO, buffer, bytes);           
+}                        
+
+static inline int read_cmd(char* buffer) {
+    int bytes = read(STDIN_FILENO, buffer, MAX_READ_BUFFER - 1);
+    if (bytes > 0) {
+        buffer[bytes] = '\0';
+    }
+    return bytes;
+}
+
+static void inline exit_nshell() {
+    log_info("[ History saved... ]\n");
+    log_info("[ Exiting nshell... ]\n");
+}
+
+/**
+ *  Token checkers:
+ *      1. is_io_redirective
+ *      2. is_supported_tool
+ *      3. is_unsupported_tool
+ */ 
+
+static inline int is_io_redirective(char * token) {
+
+    static const char *io_redirectives[] = { "<", ">", ">>", "2>", "&>" };
+    int redirective_cnt = sizeof(io_redirectives)/sizeof(io_redirectives[0]);
+
+    for (int i=0; i<redirective_cnt; i++) {
+        if (strcmp(token, io_redirectives[i]) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static inline int is_supported_tool(char * token) {
+
+    static const char *supported_tools[] = { "&&", "|", "||" };
+    int tool_cnt = sizeof(supported_tools)/sizeof(supported_tools[0]);
+
+    for (int i=0; i<tool_cnt; i++) {
+        if (strcmp(token, supported_tools[i]) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static inline int is_unsupported_tool(char * token) {
+
+    static const char *unsupported_tools[] = { ";", "#", "&", "$", "\\" };
+    int tool_cnt = sizeof(unsupported_tools)/sizeof(unsupported_tools[0]);
+
+    for (int i=0; i<tool_cnt; i++) {
+        if (strcmp(token, unsupported_tools[i]) == 0) {
+            return 1;
         }
     }
     return 0;
