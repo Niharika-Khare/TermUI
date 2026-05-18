@@ -302,9 +302,15 @@ static int parse_commands(char *buffer, Command * root_command) {
  */
 static int execute_commands(Command *command) {
     int success = 1;
+    int prev_r_fd = STDIN_FILENO;
+    int prev_w_fd = STDOUT_FILENO;
+    int p_fd[2];
     while (command) {
         if (*command->cmd) {
             success = 1;
+            if  (*command->tool && (memcmp(command->tool, "|", sizeof("|")) == 0)) {
+                pipe(p_fd);
+            }
             if (memcmp(command->cmd, BI_EXIT, sizeof(BI_EXIT)) == 0) {
                 return 1;
             }
@@ -354,6 +360,14 @@ static int execute_commands(Command *command) {
                     log_err("err: encountered error in execution of: %s\n", command->cmd);
                     break;
                 } else if (cmd_pid == 0) {
+                    if  (*command->tool && (memcmp(command->tool, "|", sizeof("|")) == 0)) {
+                        if (prev_r_fd == STDIN_FILENO) {
+                            dup2 (p_fd[0], STDIN_FILENO);
+                        }
+                        dup2 (p_fd[1], prev_w_fd);
+                        close (p_fd[0]);
+                        close (p_fd[1]);
+                    }
                     if (apply_io_redirect(command) == -1) {
                         return 0;
                     }
@@ -375,6 +389,10 @@ static int execute_commands(Command *command) {
                     if (wait(&status) != -1) {
                         success = WEXITSTATUS(status) == 0;
                     }
+                    prev_r_fd = p_fd[0];
+                    prev_w_fd = p_fd[1];
+                    close (p_fd[0]);
+                    close (p_fd[1]);
                 }
             }
             if (*command->tool) {
@@ -382,8 +400,6 @@ static int execute_commands(Command *command) {
                     return 0;
                 } else if (memcmp(command->tool, "&&", sizeof("&&")) == 0 && !success) {
                     return 0;
-                } else if (memcmp(command->tool, "|", sizeof("|")) == 0) {
-                
                 }
             } 
             command = command->next_cmd;
