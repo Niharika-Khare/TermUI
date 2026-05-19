@@ -302,14 +302,19 @@ static int parse_commands(char *buffer, Command * root_command) {
  */
 static int execute_commands(Command *command) {
     int success = 1;
-    int prev_r_fd = STDIN_FILENO;
-    int prev_w_fd = STDOUT_FILENO;
+    int pipe_active = 0;
+    int prev_read_fd = -1;
     int p_fd[2];
     while (command) {
         if (*command->cmd) {
             success = 1;
-            if  (*command->tool && (memcmp(command->tool, "|", sizeof("|")) == 0)) {
-                pipe(p_fd);
+            pipe_active = 0;
+            if (*command->tool && (memcmp(command->tool, "|", sizeof("|")) == 0)) {
+                if (pipe(p_fd) == -1) {
+                    log_err("err: encountered error in command piping: %s\n", command->cmd);
+                    break;
+                }
+                pipe_active = 1;
             }
             if (memcmp(command->cmd, BI_EXIT, sizeof(BI_EXIT)) == 0) {
                 return 1;
@@ -360,11 +365,18 @@ static int execute_commands(Command *command) {
                     log_err("err: encountered error in execution of: %s\n", command->cmd);
                     break;
                 } else if (cmd_pid == 0) {
-                    if  (*command->tool && (memcmp(command->tool, "|", sizeof("|")) == 0)) {
-                        if (prev_r_fd == STDIN_FILENO) {
-                            dup2 (p_fd[0], STDIN_FILENO);
+                    if (prev_read_fd != -1) {
+                        if (dup2 (prev_read_fd, STDIN_FILENO) == -1) {
+                            log_err("err: unable to consume pipe input: %s\n", command->cmd);
+                            exit(1);
                         }
-                        dup2 (p_fd[1], prev_w_fd);
+                        close (prev_read_fd);
+                    }
+                    if (*command->tool && (memcmp(command->tool, "|", sizeof("|")) == 0)) {
+                        if (dup2 (p_fd[1], STDOUT_FILENO) == -1) {
+                            log_err("err: unable to write to pipe: %s\n", command->cmd);
+                            exit(1);
+                        }
                         close (p_fd[0]);
                         close (p_fd[1]);
                     }
@@ -385,14 +397,18 @@ static int execute_commands(Command *command) {
                         exit(1);
                     }
                 } else {
+                    if (pipe_active == 1) {
+                        close (p_fd[1]);
+                        prev_read_fd = p_fd[0];
+                    } 
+                    else {
+                        prev_read_fd = -1;
+                    }
+                    
                     int status;
                     if (wait(&status) != -1) {
                         success = WEXITSTATUS(status) == 0;
-                    }
-                    prev_r_fd = p_fd[0];
-                    prev_w_fd = p_fd[1];
-                    close (p_fd[0]);
-                    close (p_fd[1]);
+                    }   
                 }
             }
             if (*command->tool) {
