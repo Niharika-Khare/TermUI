@@ -152,7 +152,9 @@ nShell parses a command line into a linked list of `Command` nodes — one per s
 
 Standard I/O redirection (`<`, `>`, `>>`, `2>`, `&>`) is fully supported: each opens its target file and `dup2`s it onto the relevant fd. The original fds are saved with `dup` at shell start and restored after every command.
 
-`&&` and `||` are evaluated against `WEXITSTATUS`. Pipe execution is in progress — see [Work in progress](#work-in-progress).
+`&&` and `||` are evaluated against `WEXITSTATUS`. 
+
+Pipe execution works with each command forking a child that wires its stdin from the previous command's read-end (prev_read_fd) and its stdout to the next command's write-end (p_fd[1]), chaining commands sequentially via a rolling pipe pair.
 
 ## Commands
 
@@ -167,7 +169,6 @@ Each command compiles to a standalone binary under `bin/commands/` and is invoke
 
 ## Work in progress
 
-- **Pipe execution.** The parser already builds a chain of `Command` nodes joined by `|`, but the execute branch is empty. Filling it in needs `pipe(2)` for the fd pair, an extra `fork` per stage, `dup2` to rewire stdin/stdout in each child, and disciplined `close` on the parent so EOF propagates.
 - **`rm`, `mv`, `grep`.** Not present under `commands/` yet.
 - **Help screen.** `display_info()` in `src/choices/help.c` is currently a stub — Help opens an empty screen.
 
